@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:campus_app/core/constants/colors.dart';
-import 'package:campus_app/screens/home/announcements_screen.dart';
+import 'package:campus_app/core/constants/colors.dart' hide AppColors;
+import 'package:campus_app/screens/announcement/announcements_screen.dart';
 import 'package:campus_app/screens/home/assignments_screen.dart';
 import 'package:campus_app/screens/home/chat_screen.dart';
-import 'package:campus_app/screens/home/notes_screen.dart';
+import 'package:campus_app/screens/Notes/notes_screen.dart';
 import 'package:campus_app/screens/home/profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 

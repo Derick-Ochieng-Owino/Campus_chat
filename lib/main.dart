@@ -4,15 +4,16 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 
 // Import your screens
-import 'screens/splash/splash_screen.dart';
+import 'screens/auth/splash_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/uploads/upload_file_screen.dart';
-import 'screens/home/groups_tab.dart';
-import 'screens/home/units_tab.dart';
+import 'screens/home/groups_tab.dart'; // Ensure this file exists or update path
+import 'screens/home/units_tab.dart';  // Ensure this file exists or update path
 import 'screens/auth/login_screen.dart';
-import 'screens/auth/signup_screen.dart';
+// We hide LoginPage from signup_screen to avoid naming conflicts if both define it
+import 'screens/auth/signup_screen.dart' hide LoginPage;
 
 // Import your providers
+// Ensure these files exist in your lib/providers folder
 import 'providers/user_provider.dart';
 import 'providers/group_provider.dart';
 import 'providers/chat_provider.dart';
@@ -37,20 +38,19 @@ void main() async {
 }
 
 // ======================================================
-// ROUTES
+// ROUTES CONFIGURATION
 // ======================================================
 class AppRoutes {
-  static const home = "/home";
-  static const fileUpload = "/file-upload";
-  static const courseUnits = "/course-units";
-  static const groups = "/groups";
-  static const profile = "/profile";
-  static const login = "/login";
-  static const signup = "/signup";
+  static const String home = "/home";
+  static const String fileUpload = "/file-upload";
+  static const String courseUnits = "/course-units";
+  static const String groups = '/groups';
+  static const String profile = '/profile';
+  static const String login = '/login';
+  static const String signup = '/signup';
 
-  static Map<String, WidgetBuilder> routes = {
+  static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomePage(),
-    fileUpload: (context) => const FileUploadScreen(),
     groups: (context) => const GroupsScreen(),
     courseUnits: (context) => CourseUnitsScreen(),
     login: (context) => const LoginPage(),
@@ -59,7 +59,7 @@ class AppRoutes {
 }
 
 // ======================================================
-// MAIN APP
+// MAIN APP WIDGET
 // ======================================================
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -75,9 +75,10 @@ class MyApp extends StatelessWidget {
         visualDensity: VisualDensity.adaptivePlatformDensity,
         useMaterial3: true,
       ),
-      initialRoute: AppRoutes.home,
-      routes: AppRoutes.routes,
+      // We do NOT set initialRoute here because we want 'home' to take precedence.
+      // The SplashScreen acts as the gatekeeper to decide where to go next.
       home: const SplashScreen(),
+      routes: AppRoutes.routes,
     );
   }
 }

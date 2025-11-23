@@ -5,7 +5,7 @@ import 'package:campus_app/core/constants/text_styles.dart';
 import 'package:campus_app/models/chat_model.dart';
 import 'package:campus_app/providers/chat_provider.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
   @override
@@ -16,8 +16,8 @@ class _ChatScreenState extends State<ChatScreen>{
   late final TextEditingController textController;
 
   @override
-  void initstate() {
-    super.initstate();
+  void initState() {
+    super.initState();
     textController = TextEditingController();
   }
 
