@@ -1,3 +1,4 @@
+import 'package:campus_app/screens/groups/groups_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +7,6 @@ import 'firebase_options.dart';
 // Import your screens
 import 'screens/auth/splash_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/home/groups_tab.dart'; // Ensure this file exists or update path
 import 'screens/home/units_tab.dart';  // Ensure this file exists or update path
 import 'screens/auth/login_screen.dart';
 // We hide LoginPage from signup_screen to avoid naming conflicts if both define it

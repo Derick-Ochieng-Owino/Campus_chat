@@ -15,7 +15,6 @@ class GroupsScreen extends StatelessWidget {
     final myUid = userProvider.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Class Groups")),
       body: StreamBuilder<QuerySnapshot>(
         stream: fs.groups.snapshots(),
         builder: (context, snap) {

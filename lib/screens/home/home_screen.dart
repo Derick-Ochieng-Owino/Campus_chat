@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:campus_app/core/constants/colors.dart' hide AppColors;
 import 'package:campus_app/screens/announcement/announcements_screen.dart';
-import 'package:campus_app/screens/home/assignments_screen.dart';
-import 'package:campus_app/screens/home/chat_screen.dart';
+import 'package:campus_app/screens/chat/chat_screen.dart';
 import 'package:campus_app/screens/Notes/notes_screen.dart';
-import 'package:campus_app/screens/home/profile_screen.dart';
+import 'package:campus_app/screens/Profile/profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import '../chat/chat_home_screen.dart';
+import '../groups/groups_screen.dart';
 
 // The main dashboard which handles the bottom navigation and routing to tabs.
 // This implements the requested WhatsApp-like UI, five tabs, and animated nav bar.
@@ -19,12 +20,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  // 5 Tabs: Chat, Notes, Assignments, Announcements, Profile
+  // 5 Tabs: Chat, Notes, Groups, Announcements, Profile
   final List<Widget> _screens = [
-    ChatScreen(),         // 0: WhatsApp-like Chat UI
+    ChatHomeScreen(),         // 0: WhatsApp-like Chat UI
     NotesScreen(),        // 1: Units listed with Notes (PDF, DOCX, etc.)
-    AssignmentsScreen(),  // 2: Assignments uploaded by Class Rep
-    AnnouncementsScreen(),// 3: Notices and School/Department news
+    GroupsScreen(),  // 2: Groups
+    AnnouncementScreen(),// 3: Notices and School/Department news
     ProfileScreen(),      // 4: User profile and Sign Out
   ];
 
@@ -38,7 +39,7 @@ class _HomePageState extends State<HomePage> {
 
     // Determine the title based on the current tab
     final String appBarTitle = [
-      'Campus Chats', 'Course Notes', 'Assignments', 'Announcements', 'My Profile'
+      'Campus Chats', 'Course Notes', 'Groups', 'Announcements', 'My Profile'
     ][_currentIndex];
 
     return Scaffold(
@@ -72,7 +73,7 @@ class _HomePageState extends State<HomePage> {
         items: [
           _buildNavItem(0, Icons.message, "Chat"),
           _buildNavItem(1, Icons.book, "Notes"),
-          _buildNavItem(2, Icons.assignment, "Assignments"),
+          _buildNavItem(2, Icons.group, "Groups"),
           _buildNavItem(3, Icons.campaign, "Announcements"),
           _buildNavItem(4, Icons.person, "Profile"),
         ],

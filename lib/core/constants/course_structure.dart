@@ -3,25 +3,25 @@ import 'unit_catalog.dart';
 
 class CourseStructure {
   /// Map of courseKey -> year -> semester -> list of unitCodes
-  /// courseKey values: 'BBIT', 'COMPUTER_SCIENCE', 'BIT', 'BSC_CS', etc.
+  /// Fill in as you verify official unit lists. This contains core programs for initial seed.
   static final Map<String, Map<String, Map<String, List<String>>>> curriculum = {
-    // BBIT (Bachelor of Business Information Technology) — example based on SODeL lists.
+    // BBIT (example fill from JKUAT pages)
     'BBIT': {
       '1': {
         '1': [
           'HRD2101',
           'SZL2111',
           'COMM1101',
-          'ICS2101',     // Computer Organization
-          'PSI2101',     // Programming Methodologies
+          'PSI2101',
+          'ICS2101',
           'HBC2102',
           'HBC2103',
         ],
         '2': [
-          'DBS2101',    // Database Systems
-          'SWE2101',    // Software Engineering I
-          'HBT2102',    // Computer Operating Systems
-          'ICS2106',    // Internet Application Programming
+          'DBS2101',
+          'SWE2101',
+          'HBT2102',
+          'ICS2106',
           'ENT2401',
         ],
       },
@@ -30,21 +30,20 @@ class CourseStructure {
           'ICS2201',
           'CSS2101',
           'AI3101',
-          'PROJ4001', // placeholder for project later
         ],
         '2': [
           'SMA2104',
-          'AI3101',
+          'PROJ4001',
         ],
       },
     },
 
-    // Computer Science (BSc. Computer Science)
+    // COMPUTER SCIENCE (BSc.)
     'COMPUTER_SCIENCE': {
       '1': {
         '1': [
-          'PSI2101', // Programming Methodologies
-          'SMA2104', // Mathematics for Science
+          'PSI2101',
+          'SMA2104',
           'COMM1101',
           'ICS2101',
         ],
@@ -62,10 +61,10 @@ class CourseStructure {
         '2': [
           'PROJ4001',
         ],
-      }
+      },
     },
 
-    // Generic fallback example for BIT / IT
+    // BIT (Information Technology)
     'BIT': {
       '1': {
         '1': ['COMM1101', 'PSI2101', 'ICS2101'],
@@ -73,16 +72,38 @@ class CourseStructure {
       },
     },
 
-    // Add more course mappings here as you confirm official unit codes
+    // BCOM (Commerce)
+    'BCOM': {
+      '1': {
+        '1': ['HBC2102', 'HBC2103', 'HCB0101'],
+        '2': ['HCB0102', 'HCB0104'],
+      },
+    },
+
+    // AGRICULTURE (sample)
+    'BSC_AGRIC': {
+      '1': {
+        '1': ['AHS2001', 'SBC2001', 'COMM1101'],
+        '2': ['AHS2002', 'AHS2005'],
+      },
+    },
+
+    // MBChB placeholder (medicine) — use real official list if available
+    'MBCHB': {
+      '1': {
+        '1': ['ANAT2101', 'BIO2101', 'MIC2101'],
+        '2': ['PHYS2101'],
+      },
+    },
+
+    // Add rest of courses similarly
   };
 
-  /// Returns list of unit codes for course/year/semester
   static List<String> getUnitCodes(String courseKey, String year, String semester) {
     return curriculum[courseKey]?[year]?[semester] ?? [];
   }
 
-  /// Convert unit codes to names using UnitCatalog
-  static List<String> getUnitNames(List<String> codes) {
+  static List<String> getUnitNamesFromCodes(List<String> codes) {
     return codes.map((c) => UnitCatalog.units[c] ?? c).toList();
   }
 }

@@ -1,49 +1,63 @@
-import 'package:flutter/foundation.dart';
-import 'package:campus_app/models/chat_model.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/chat_model.dart';
 
-// NOTE: In a real app, you would connect this to Firebase Firestore
-// using StreamBuilder to fetch real-time messages.
+class ChatProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-class ChatProvider extends ChangeNotifier {
-  List<ChatMessage> _messages = [
-    ChatMessage(
-      senderId: 'user1',
-      senderName: 'Jane Doe (CR)',
-      text: 'Reminder: Assignments for CS201 are due Friday.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      isMe: false,
-    ),
-    ChatMessage(
-      senderId: 'current_user',
-      senderName: 'You',
-      text: 'Got it, thanks for the reminder!',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-      isMe: true,
-    ),
-    ChatMessage(
-      senderId: 'user2',
-      senderName: 'Physics Group',
-      text: 'Is anyone struggling with Newton\'s Laws?',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
-      isMe: false,
-    ),
-  ];
+  List<ChatMessage> messages = [];
 
-  List<ChatMessage> get messages => _messages;
+  Stream<List<ChatMessage>> groupChatStream() {
+    return _firestore
+        .collection('group_chat')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => ChatMessage.fromMap(doc.data()))
+        .toList());
+  }
 
-  void sendMessage(String text, String senderName, String senderId) {
-    final newMessage = ChatMessage(
+  Stream<List<ChatMessage>> privateChatStream(String currentUserId, String otherUserId) {
+    return _firestore
+        .collection('private_chats')
+        .where('participants', arrayContains: currentUserId)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ChatMessage.fromMap(doc.data()))
+          .where((msg) =>
+      (msg.senderId == currentUserId && msg.receiverId == otherUserId) ||
+          (msg.senderId == otherUserId && msg.receiverId == currentUserId))
+          .toList();
+    });
+  }
+
+  Future<void> sendGroupMessage(String text, String senderName, String senderId) async {
+    final message = ChatMessage(
+      text: text,
       senderId: senderId,
       senderName: senderName,
-      text: text,
       timestamp: DateTime.now(),
-      isMe: true,
+      receiverId: null,
     );
 
-    _messages.add(newMessage);
-    // In a real app, you would save to Firestore here:
-    // FirebaseFirestore.instance.collection('chats').add(newMessage.toMap());
+    await _firestore.collection('group_chat').add(message.toMap());
+  }
 
-    notifyListeners();
+  Future<void> sendPrivateMessage(
+      String text, String senderName, String senderId, String receiverId) async {
+    final message = ChatMessage(
+      text: text,
+      senderId: senderId,
+      senderName: senderName,
+      timestamp: DateTime.now(),
+      receiverId: receiverId,
+    );
+
+    await _firestore.collection('private_chats').add({
+      ...message.toMap(),
+      'participants': [senderId, receiverId],
+    });
   }
 }

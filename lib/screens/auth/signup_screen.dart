@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import 'ghost.dart';
@@ -52,23 +54,41 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  void _handleSignUp() {
+  void _handleSignUp() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _loading = true);
-      // Simulate network delay
-      Future.delayed(const Duration(seconds: 2), () {
+      try {
+        final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+        // Save additional info in Firestore
+        await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'role': 'student', // or dynamic
+          'created_at': FieldValue.serverTimestamp(),
+        });
+
         if (mounted) {
-          setState(() => _loading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Sign Up Successful!"),
-              backgroundColor: AppColors.primary,
-            ),
+            const SnackBar(content: Text("Sign Up Successful!"), backgroundColor: AppColors.primary),
+          );
+          Navigator.pop(context); // go back to login
+        }
+      } on FirebaseAuthException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Sign Up Failed: ${e.message}"), backgroundColor: Colors.red),
           );
         }
-      });
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
     }
   }
+
 
   TextEditingController get _activeController {
     switch (_activeFieldIndex) {

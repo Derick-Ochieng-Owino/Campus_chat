@@ -1,26 +1,35 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class ChatMessage {
+  final String text;
   final String senderId;
   final String senderName;
-  final String text;
   final DateTime timestamp;
-  final bool isMe;
+  final String? receiverId; // null for group chat
 
   ChatMessage({
+    required this.text,
     required this.senderId,
     required this.senderName,
-    required this.text,
     required this.timestamp,
-    required this.isMe,
+    this.receiverId,
   });
 
-  // Factory method to create a ChatMessage from a Firestore map
-  factory ChatMessage.fromMap(Map<String, dynamic> data) {
+  Map<String, dynamic> toMap() => {
+    'text': text,
+    'senderId': senderId,
+    'senderName': senderName,
+    'timestamp': Timestamp.fromDate(timestamp),
+    'receiverId': receiverId,
+  };
+
+  factory ChatMessage.fromMap(Map<String, dynamic> map) {
     return ChatMessage(
-      senderId: data['senderId'] ?? '',
-      senderName: data['senderName'] ?? 'Unknown',
-      text: data['text'] ?? '',
-      timestamp: (data['timestamp'] as dynamic)?.toDate() ?? DateTime.now(),
-      isMe: false, // Determined by comparison in the UI
+      text: map['text'] ?? '',
+      senderId: map['senderId'] ?? '',
+      senderName: map['senderName'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      receiverId: map['receiverId'],
     );
   }
 }

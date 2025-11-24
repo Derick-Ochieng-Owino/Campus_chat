@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/campus_data.dart';
+import '../../core/constants/unit_catalog.dart';
 
 // Replace with your app constants, or keep these minimal
 class AppColors {
@@ -152,32 +153,36 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<List<Unit>> _loadUnitsOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+
     final user = _auth.currentUser;
     if (user == null) return [];
 
-    final doc = await _firestore.collection('users').doc(user.uid).get();
-    if (!doc.exists) return [];
+    final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) return [];
 
-    final data = doc.data()!;
-    final String course = data['course'];
-    final year = data['year_of_study'];
-    final semester = data['semester'];
+    final data = userDoc.data()!;
+    final List<dynamic> codes = data['registered_units'] ?? [];
+    // convert to strings
+    final List<String> unitCodes = codes.map((e) => e.toString()).toList();
 
-    // Pull units from CampusData
-    final unitNames = CampusData.getUnits(course, year, semester);
-
-    // Convert into your Unit model
-    final units = unitNames.map((name) {
+    // Convert to your Unit model (simple mapping)
+    final units = unitCodes.map((code) {
       return Unit(
-        id: name,        // use name as ID
-        name: name,
-        year: year,
-        semester: semester,
+        id: code,
+        name: UnitCatalog.units[code] ?? code,
+        year: int.tryParse(data['year']?.toString() ?? '1') ?? 1,
+        semester: int.tryParse(data['semester']?.toString() ?? '1') ?? 1,
       );
     }).toList();
 
+    // Optionally cache (same as your existing caching approach)
+    prefs.setString(_cacheKey, Unit.encodeList(units));
+    prefs.setString('${_cacheKey}_ts', DateTime.now().toIso8601String());
+
     return units;
   }
+
 
 
   bool _canUpload() {
