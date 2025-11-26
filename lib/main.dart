@@ -1,6 +1,10 @@
+import 'dart:convert';
+
+import 'package:campus_app/screens/Profile/complete_profile.dart';
 import 'package:campus_app/screens/groups/groups_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 
@@ -10,13 +14,19 @@ import 'screens/home/home_screen.dart';
 import 'screens/home/units_tab.dart';  // Ensure this file exists or update path
 import 'screens/auth/login_screen.dart';
 // We hide LoginPage from signup_screen to avoid naming conflicts if both define it
-import 'screens/auth/signup_screen.dart' hide LoginPage;
+import 'screens/auth/signup_screen.dart';
 
 // Import your providers
 // Ensure these files exist in your lib/providers folder
 import 'providers/user_provider.dart';
 import 'providers/group_provider.dart';
 import 'providers/chat_provider.dart';
+
+// Future<CampusData> loadCampusData() async {
+//   final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
+//   final campusMap = jsonDecode(jsonString) as Map<String, dynamic>;
+//   return CampusData(campusMap);
+// }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,3 +92,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

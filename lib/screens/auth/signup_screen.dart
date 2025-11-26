@@ -18,10 +18,12 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _regController = TextEditingController();
 
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _regFocusNode = FocusNode();
 
   bool _showPassword = false;
   bool _loading = false;
@@ -67,7 +69,7 @@ class _SignUpPageState extends State<SignUpPage> {
         await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
-          'role': 'student', // or dynamic
+          'role': 'student',
           'created_at': FieldValue.serverTimestamp(),
         });
 
@@ -213,6 +215,29 @@ class _SignUpPageState extends State<SignUpPage> {
                                 validator: (v) => v == null || v.isEmpty ? "Enter name" : null,
                               ),
                               const SizedBox(height: 20),
+
+                              TextFormField(
+                                controller: _regController,        // <-- rename controller
+                                focusNode: _regFocusNode,          // <-- rename focus node
+                                onTap: () => _updateActiveField(0),
+                                decoration: _getDecoration(
+                                  label: 'Registration Number',
+                                  hint: 'Enter your registration number',
+                                  icon: Icons.badge,               // badge icon fits registration
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) return "Enter registration number";
+
+                                  // Optional: basic format check (JKUAT format example)
+                                  // if (!RegExp(r"^[A-Z]{2}\d{2}-\d{5}/\d{2}$").hasMatch(v.trim())) {
+                                  //   return "Invalid registration number format";
+                                  // }
+
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 20),
+
 
                               // Email field
                               TextFormField(

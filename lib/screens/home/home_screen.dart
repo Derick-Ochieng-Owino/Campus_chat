@@ -1,15 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:campus_app/screens/announcement/announcements_screen.dart';
-import 'package:campus_app/screens/chat/chat_screen.dart';
-import 'package:campus_app/screens/Notes/notes_screen.dart';
-import 'package:campus_app/screens/Profile/profile_screen.dart';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../core/constants/colors.dart';
+import '../Notes/notes_screen.dart';
+import '../Profile/complete_profile.dart';
+import '../Profile/profile_screen.dart';
+import '../announcement/announcements_screen.dart';
 import '../chat/chat_home_screen.dart';
 import '../groups/groups_screen.dart';
 
-// The main dashboard which handles the bottom navigation and routing to tabs.
-// This implements the requested WhatsApp-like UI, five tabs, and animated nav bar.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -19,55 +20,82 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  Future<CampusData>? _campusDataFuture;
 
-  // 5 Tabs: Chat, Notes, Groups, Announcements, Profile
-  final List<Widget> _screens = [
-    ChatHomeScreen(),         // 0: WhatsApp-like Chat UI
-    NotesScreen(),        // 1: Units listed with Notes (PDF, DOCX, etc.)
-    GroupsScreen(),  // 2: Groups
-    AnnouncementScreen(),// 3: Notices and School/Department news
-    ProfileScreen(),      // 4: User profile and Sign Out
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _campusDataFuture = _loadCampusData();
+  }
+
+  Future<CampusData> _loadCampusData() async {
+    try {
+      final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
+      final data = CampusData.fromJsonString(jsonString);
+      return data;
+    } catch (e) {
+      debugPrint('Error loading campus JSON: $e');
+      return CampusData(campuses: {}); // fallback to empty
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Current user email for the AppBar title
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Guest User';
-
-    // Customize AppBar based on the active screen
     final isChatScreen = _currentIndex == 0;
-
-    // Determine the title based on the current tab
     final String appBarTitle = [
-      'Campus Chats', 'Course Notes', 'Groups', 'Announcements', 'My Profile'
+      'Campus Chats',
+      'Course Notes',
+      'Groups',
+      'Announcements',
+      'My Profile'
     ][_currentIndex];
 
     return Scaffold(
       appBar: AppBar(
-        // Use different colors for the Chat screen (WhatsApp green)
         automaticallyImplyLeading: false,
         title: Text(appBarTitle, style: const TextStyle(color: Colors.white)),
-
         backgroundColor: isChatScreen ? AppColors.secondary : AppColors.primary,
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 15.0),
             child: Center(
               child: Text(
-                // Displays the username (part before the '@')
-                  userEmail.split('@').first,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14)
+                userEmail.split('@').first,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ),
           )
         ],
       ),
-      body: _screens[_currentIndex],
+      body: FutureBuilder<CampusData>(
+        future: _campusDataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error loading campus data: ${snapshot.error}'));
+          } else if (!snapshot.hasData) {
+            return const Center(child: Text('No campus data found'));
+          }
+
+          final campusDataInstance = snapshot.data!;
+
+          final screens = [
+            ChatHomeScreen(), // 0
+            NotesScreen(campusData: campusDataInstance), // 1
+            GroupsScreen(), // 2
+            AnnouncementScreen(), // 3
+            ProfileScreen(), // 4
+          ];
+
+          return screens[_currentIndex];
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed, // Necessary for 5 items
+        type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.darkGrey,
         items: [
@@ -81,26 +109,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Custom Navigation Item for Active/Enlarge Feature (Icon Rises/Enlarges)
   BottomNavigationBarItem _buildNavItem(int index, IconData icon, String label) {
     final bool isActive = index == _currentIndex;
 
     return BottomNavigationBarItem(
-      // AnimatedContainer creates the rising/enlarge effect
       icon: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
         padding: const EdgeInsets.all(8.0),
         decoration: BoxDecoration(
-          // Rounded background effect when active
           color: isActive ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(50),
-          // Rounded border feature
           border: isActive ? Border.all(color: AppColors.primary, width: 1.5) : null,
         ),
         child: Icon(
           icon,
-          size: isActive ? 28.0 : 24.0, // Enlarge feature
+          size: isActive ? 28.0 : 24.0,
           color: isActive ? AppColors.primary : AppColors.darkGrey,
         ),
       ),

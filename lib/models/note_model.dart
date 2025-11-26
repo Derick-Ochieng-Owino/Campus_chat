@@ -1,37 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class NoteModel {
+class Note {
   final String id;
-  final String unitCode;
   final String title;
-  final String fileUrl; // URL where the file is stored (e.g., Firebase Storage)
-  final String fileFormat; // PDF, DOCX, PPT, etc.
+  final String url;
   final String uploaderId;
   final String uploaderName;
-  final DateTime uploadDate;
+  final String format;
+  final DateTime createdAt;
 
-  NoteModel({
+  Note({
     required this.id,
-    required this.unitCode,
     required this.title,
-    required this.fileUrl,
-    required this.fileFormat,
+    required this.url,
     required this.uploaderId,
     required this.uploaderName,
-    required this.uploadDate,
+    required this.format,
+    required this.createdAt,
   });
 
-  factory NoteModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return NoteModel(
+  factory Note.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return Note(
       id: doc.id,
-      unitCode: data['unitCode'] ?? 'UNKNOWN',
-      title: data['title'] ?? 'Untitled Note',
-      fileUrl: data['fileUrl'] ?? '',
-      fileFormat: data['fileFormat'] ?? 'File',
-      uploaderId: data['uploaderId'] ?? 'system',
-      uploaderName: data['uploaderName'] ?? 'Uploader',
-      uploadDate: (data['uploadDate'] as Timestamp).toDate(),
+      title: d['title'] ?? 'Untitled',
+      url: d['url'] ?? '',
+      uploaderId: d['uploaderId'] ?? '',
+      uploaderName: d['uploaderName'] ?? '',
+      format: d['format'] ?? '',
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }

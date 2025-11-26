@@ -1,15 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
-import '../../core/constants/campus_data.dart';// make sure this points to your CampusData file
-
 class AdminUploadNotesPage extends StatefulWidget {
-  const AdminUploadNotesPage({super.key});
+  final String campusJson;
+  const AdminUploadNotesPage({super.key, required this.campusJson});
 
   @override
   State<AdminUploadNotesPage> createState() => _AdminUploadNotesPageState();
@@ -18,225 +17,220 @@ class AdminUploadNotesPage extends StatefulWidget {
 class _AdminUploadNotesPageState extends State<AdminUploadNotesPage> {
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  Map<String, dynamic> campusData = {};
+  String? _selectedCampus, _selectedCollege, _selectedSchool, _selectedDept, _selectedCourse, _selectedYear, _selectedSem;
+  List<Map<String, dynamic>> _units = [];
+  Map<String, String?> _selectedUnitMap = {};
+
+  bool _loading = true;
   String? _userRole;
   String? _userName;
   String? _userId;
 
-  List<String> _units = [];
-  String? _selectedUnit;
-
-  bool _loading = true;
-
   @override
   void initState() {
     super.initState();
-    _initUserAndLoadUnits();
+    _initData();
   }
 
-  bool get _canUpload {
-    final r = (_userRole ?? '').toLowerCase();
-    return r == 'admin' || r == 'class_rep' || r == 'assistant' || r == 'classrep';
-  }
-
-  Future<void> _initUserAndLoadUnits() async {
+  Future<void> _initData() async {
+    campusData = jsonDecode(widget.campusJson)['campuses'] ?? {};
     final user = _auth.currentUser;
-    if (user == null) {
-      setState(() => _loading = false);
-      return;
+    if (user != null) {
+      _userId = user.uid;
+      final doc = await _fs.collection('users').doc(user.uid).get();
+      final data = doc.data() ?? {};
+      _userRole = data['role'] ?? 'student';
+      _userName = data['name'] ?? user.displayName ?? 'Unknown';
     }
-
-    _userId = user.uid;
-
-    // load user profile
-    final doc = await _fs.collection('users').doc(user.uid).get();
-    final data = doc.data() ?? {};
-
-    _userRole = data['role'] ?? 'student';
-    _userName = data['name'] ?? user.displayName ?? 'Unknown';
-
-    final course = data['course'];
-    final year = data['year_of_study'];
-    final semester = data['semester'];
-
-    if (course == null || year == null || semester == null) {
-      setState(() => _loading = false);
-      return;
-    }
-
-    // pull units dynamically from CampusData
-    _units = CampusData.getUnits(course, year, semester).toList();
-
     setState(() => _loading = false);
   }
 
-  Future<void> _pickAndUploadFile() async {
-    if (!_canUpload) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You do not have permission to upload.')),
-      );
+  bool get _canUpload => (_userRole ?? '').toLowerCase().contains('admin') || (_userRole ?? '').toLowerCase().contains('rep');
+
+  List<String> _getColleges() => campusData[_selectedCampus]?['colleges']?.keys.cast<String>().toList() ?? [];
+  List<String> _getSchools() => campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools']?.keys.cast<String>().toList() ?? [];
+  List<String> _getDepartments() => campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools'][_selectedSchool]?['departments']?.keys.cast<String>().toList() ?? [];
+  List<String> _getCourses() => campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools'][_selectedSchool]?['departments'][_selectedDept]?['courses']?.keys.cast<String>().toList() ?? [];
+  List<String> _getYears() => campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools'][_selectedSchool]?['departments'][_selectedDept]?['courses'][_selectedCourse]?['years']?.keys.cast<String>().toList() ?? [];
+  List<String> _getSemesters() => campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools'][_selectedSchool]?['departments'][_selectedDept]?['courses'][_selectedCourse]?['years'][_selectedYear]?.keys.cast<String>().toList() ?? [];
+  List<Map<String, dynamic>> _getUnits() => (campusData[_selectedCampus]?['colleges'][_selectedCollege]?['schools'][_selectedSchool]?['departments'][_selectedDept]?['courses'][_selectedCourse]?['years'][_selectedYear]?[_selectedSem] ?? []).cast<Map<String, dynamic>>();
+
+  Future<void> _pickAndUploadNote() async {
+    if (!_canUpload) return;
+    if (_selectedUnitMap.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Select a unit first")));
       return;
     }
 
-    if (_selectedUnit == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a unit first.')),
-      );
-      return;
-    }
-
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      type: FileType.any,
-    );
-
+    final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
     if (result == null) return;
-
     final filePath = result.files.single.path;
     if (filePath == null) return;
-
     final file = File(filePath);
-    final originalName = result.files.single.name;
-    final ext = path.extension(originalName).replaceFirst('.', '').toUpperCase();
+    final title = result.files.single.name;
 
-    // Ask for custom title
-    final title = await _askForTitle(initial: originalName);
-    if (title == null) return;
+    final bytes = await file.readAsBytes();
+    final base64Content = base64Encode(bytes);
+    final ext = path.extension(filePath).replaceFirst('.', '').toUpperCase();
 
-    await _uploadFile(file, title, ext);
-  }
+    // Save to Firestore under the proper path
+    final unitCode = _selectedUnitMap['code']!;
+    final docRef = _fs
+        .collection('campuses')
+        .doc(_selectedCampus)
+        .collection('colleges')
+        .doc(_selectedCollege)
+        .collection('schools')
+        .doc(_selectedSchool)
+        .collection('departments')
+        .doc(_selectedDept)
+        .collection('courses')
+        .doc(_selectedCourse)
+        .collection('years')
+        .doc(_selectedYear)
+        .collection('semesters')
+        .doc(_selectedSem)
+        .collection('units')
+        .doc(unitCode)
+        .collection('notes')
+        .doc();
 
-  Future<String?> _askForTitle({required String initial}) {
-    final c = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Note Title"),
-        content: TextField(
-          controller: c,
-          decoration: const InputDecoration(labelText: "Enter title"),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text("OK")),
-        ],
-      ),
-    );
-  }
+    await docRef.set({
+      "title": title,
+      "fileBase64": base64Content,
+      "format": ext,
+      "uploadedAt": FieldValue.serverTimestamp(),
+      "uploadedById": _userId,
+      "uploadedByName": _userName,
+    });
 
-  Future<void> _uploadFile(File file, String title, String ext) async {
-    final unitId = _selectedUnit!;
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(file.path)}';
-    final ref = _storage.ref().child('notes/$unitId/$fileName');
-
-    double progress = 0.0;
-    final uploadTask = ref.putFile(file);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setS) {
-          uploadTask.snapshotEvents.listen((snapshot) {
-            if (snapshot.totalBytes > 0) {
-              setS(() => progress = snapshot.bytesTransferred / snapshot.totalBytes);
-            }
-          });
-
-          return AlertDialog(
-            title: const Text("Uploading..."),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: progress),
-                const SizedBox(height: 12),
-                Text("${(progress * 100).toStringAsFixed(0)}%"),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await uploadTask.cancel();
-                  if (mounted) Navigator.pop(ctx2);
-                },
-                child: const Text("Cancel"),
-              )
-            ],
-          );
-        },
-      ),
-    );
-
-    try {
-      final snapshot = await uploadTask;
-      final url = await snapshot.ref.getDownloadURL();
-
-      // Save note to Firestore
-      await _fs.collection('units').doc(unitId).collection('notes').add({
-        "title": title,
-        "url": url,
-        "uploaderId": _userId,
-        "uploaderName": _userName ?? '',
-        "format": ext,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Upload successful")),
-      );
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Upload failed: $e")),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Note uploaded to Firestore!")));
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       appBar: AppBar(title: const Text("Upload Notes")),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            if (!_canUpload)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.yellow[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text("You do not have upload permissions."),
-              ),
-
             DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: "Unit",
-                border: OutlineInputBorder(),
-              ),
-              items: _units
-                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                  .toList(),
-              value: _selectedUnit,
-              onChanged: (v) => setState(() => _selectedUnit = v),
+              value: _selectedCampus,
+              decoration: const InputDecoration(labelText: "Campus"),
+              items: campusData.keys.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedCampus = v;
+                  _selectedCollege = null;
+                  _selectedSchool = null;
+                  _selectedDept = null;
+                  _selectedCourse = null;
+                  _selectedYear = null;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
             ),
+            DropdownButtonFormField<String>(
+              value: _selectedCollege,
+              decoration: const InputDecoration(labelText: "College"),
+              items: _getColleges().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedCollege = v;
+                  _selectedSchool = null;
+                  _selectedDept = null;
+                  _selectedCourse = null;
+                  _selectedYear = null;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedSchool,
+              decoration: const InputDecoration(labelText: "School"),
+              items: _getSchools().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedSchool = v;
+                  _selectedDept = null;
+                  _selectedCourse = null;
+                  _selectedYear = null;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedDept,
+              decoration: const InputDecoration(labelText: "Department"),
+              items: _getDepartments().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedDept = v;
+                  _selectedCourse = null;
+                  _selectedYear = null;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedCourse,
+              decoration: const InputDecoration(labelText: "Course"),
+              items: _getCourses().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedCourse = v;
+                  _selectedYear = null;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedYear,
+              decoration: const InputDecoration(labelText: "Year"),
+              items: _getYears().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedYear = v;
+                  _selectedSem = null;
+                  _units = [];
+                  _selectedUnitMap = {};
+                });
+              },
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedSem,
+              decoration: const InputDecoration(labelText: "Semester"),
+              items: _getSemesters().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedSem = v;
+                  _units = _getUnits();
+                  if (_units.isNotEmpty) {
+                    _selectedUnitMap = Map<String, String?>.from(_units.first);
+                  }
 
+                });
+              },
+            ),
             const SizedBox(height: 24),
-
-            ElevatedButton.icon(
-              icon: const Icon(Icons.upload_file),
-              label: const Text("Upload File"),
-              onPressed: _canUpload ? _pickAndUploadFile : null,
+            ElevatedButton(
+              onPressed: _canUpload && _selectedUnitMap.isNotEmpty ? _pickAndUploadNote : null,
+              child: const Text("Upload Note to Firestore"),
             ),
           ],
         ),

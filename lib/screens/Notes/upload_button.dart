@@ -60,7 +60,7 @@ class _UploadNotesButtonState extends State<UploadNotesButton> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminUploadNotesPage()),
+      MaterialPageRoute(builder: (_) => const AdminUploadNotesPage(campusJson: 'campusJson',)),
     );
   }
 

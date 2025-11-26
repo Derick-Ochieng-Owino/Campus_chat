@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Update these imports to match your project structure
 import '../../core/constants/colors.dart';
@@ -18,6 +19,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  CampusData? campusData;
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
@@ -39,6 +41,8 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _loadCampusData;
+
     _emailFocusNode.addListener(() {
       if (_emailFocusNode.hasFocus) setState(() => _activeFieldIndex = 0);
     });
@@ -65,6 +69,18 @@ class _LoginPageState extends State<LoginPage> {
     return _activeFieldIndex == 1 ? _passwordFocusNode : _emailFocusNode;
   }
 
+  Future<void> _loadCampusData() async {
+    try {
+      final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
+      final data = CampusData.fromJsonString(jsonString);
+      setState(() {
+        campusData = data;
+      });
+    } catch (e) {
+      debugPrint('Error loading campus JSON: $e');
+    }
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -87,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!userDoc.exists) {
         // Document missing? Treat as incomplete profile
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CompleteProfilePage()));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!,)));
         return;
       }
 
@@ -109,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
       if (isProfileComplete) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
       } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CompleteProfilePage()));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!,)));
       }
 
     } on FirebaseAuthException catch (e) {

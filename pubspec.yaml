@@ -79,6 +79,7 @@ flutter:
   assets:
   - assets/images/ghost.svg
   - assets/images/logo.png
+  - assets/data/campus_data.json
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

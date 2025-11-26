@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/constants/colors.dart';
 import '../Profile/complete_profile.dart';
 import 'login_screen.dart';
@@ -51,6 +52,17 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
 
+      // Load campus data first
+      CampusData campusData;
+      try {
+        final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
+        campusData = CampusData.fromJsonString(jsonString);
+        debugPrint('loading campus JSON in Splash: ');
+      } catch (e) {
+        debugPrint('Error loading campus JSON in Splash: $e');
+        campusData = CampusData(campuses: {}); // fallback
+      }
+
       if (user == null) {
         return const LoginPage();
       }
@@ -66,20 +78,20 @@ class _SplashScreenState extends State<SplashScreen> {
         final bool isProfileComplete = data?['profile_completed'] ?? false;
 
         if (isProfileComplete) {
-          return const HomePage();
+          return HomePage(); // CampusData will load inside HomePage as before
         } else {
-          return const CompleteProfilePage();
+          return CompleteProfilePage(campusData: campusData);
         }
       } else {
         // User exists in Auth but not Firestore -> Complete Profile
-        return const CompleteProfilePage();
+        return CompleteProfilePage(campusData: campusData);
       }
     } catch (e) {
       debugPrint("Error in Splash: $e");
-      // Default to Login on error
       return const LoginPage();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
