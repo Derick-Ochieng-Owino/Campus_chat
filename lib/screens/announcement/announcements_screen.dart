@@ -92,6 +92,11 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text("Class Groups", style:const TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.primary,
+      ),
       backgroundColor: AppColors.background,
       floatingActionButton: _canPost
           ? FloatingActionButton(

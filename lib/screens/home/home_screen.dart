@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,22 +51,6 @@ class _HomePageState extends State<HomePage> {
     ][_currentIndex];
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(appBarTitle, style: const TextStyle(color: Colors.white)),
-        backgroundColor: isChatScreen ? AppColors.secondary : AppColors.primary,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 15.0),
-            child: Center(
-              child: Text(
-                userEmail.split('@').first,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ),
-          )
-        ],
-      ),
       body: FutureBuilder<CampusData>(
         future: _campusDataFuture,
         builder: (context, snapshot) {
@@ -84,7 +67,7 @@ class _HomePageState extends State<HomePage> {
           final screens = [
             ChatHomeScreen(), // 0
             NotesScreen(campusData: campusDataInstance), // 1
-            GroupsScreen(), // 2
+            GroupsTab(), // 2
             AnnouncementScreen(), // 3
             ProfileScreen(), // 4
           ];

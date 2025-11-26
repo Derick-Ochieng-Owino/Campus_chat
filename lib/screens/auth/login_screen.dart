@@ -9,7 +9,7 @@ import '../Profile/complete_profile.dart';
 import '../home/home_screen.dart';
 import 'forgot_password.dart';
 import 'ghost.dart';
-import 'signup_screen.dart'; // <--- IMPORT THIS
+import 'signup_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadCampusData;
+    _loadCampusData();
 
     _emailFocusNode.addListener(() {
       if (_emailFocusNode.hasFocus) setState(() => _activeFieldIndex = 0);

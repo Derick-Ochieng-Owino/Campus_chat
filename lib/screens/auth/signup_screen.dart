@@ -35,8 +35,9 @@ class _SignUpPageState extends State<SignUpPage> {
   void initState() {
     super.initState();
     _nameFocusNode.addListener(() { if(_nameFocusNode.hasFocus) _updateActiveField(0); });
-    _emailFocusNode.addListener(() { if(_emailFocusNode.hasFocus) _updateActiveField(1); });
-    _passwordFocusNode.addListener(() { if(_passwordFocusNode.hasFocus) _updateActiveField(2); });
+    _regFocusNode.addListener(() {if(_regFocusNode.hasFocus) _updateActiveField(1); });
+    _emailFocusNode.addListener(() { if(_emailFocusNode.hasFocus) _updateActiveField(2); });
+    _passwordFocusNode.addListener(() { if(_passwordFocusNode.hasFocus) _updateActiveField(3); });
   }
 
   void _updateActiveField(int index) {
@@ -68,6 +69,7 @@ class _SignUpPageState extends State<SignUpPage> {
         // Save additional info in Firestore
         await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
           'name': _nameController.text.trim(),
+          'reg_number': _regController.text.trim(),
           'email': _emailController.text.trim(),
           'role': 'student',
           'created_at': FieldValue.serverTimestamp(),
@@ -95,8 +97,9 @@ class _SignUpPageState extends State<SignUpPage> {
   TextEditingController get _activeController {
     switch (_activeFieldIndex) {
       case 0: return _nameController;
-      case 1: return _emailController;
-      case 2: return _passwordController;
+      case 1: return _regController;
+      case 2: return _emailController;
+      case 3: return _passwordController;
       default: return _nameController;
     }
   }
@@ -104,8 +107,9 @@ class _SignUpPageState extends State<SignUpPage> {
   FocusNode get _activeFocusNode {
     switch (_activeFieldIndex) {
       case 0: return _nameFocusNode;
-      case 1: return _emailFocusNode;
-      case 2: return _passwordFocusNode;
+      case 1: return _regFocusNode;
+      case 2: return _emailFocusNode;
+      case 3: return _passwordFocusNode;
       default: return _nameFocusNode;
     }
   }

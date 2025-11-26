@@ -7,6 +7,12 @@ import '../Profile/complete_profile.dart';
 import 'login_screen.dart';
 import '../home/home_screen.dart';
 
+// Assuming these classes are available in your project structure:
+// class CampusData { ... }
+// class HomePage extends StatelessWidget { ... }
+// class LoginPage extends StatelessWidget { ... }
+// class CompleteProfilePage extends StatelessWidget { ... }
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -23,17 +29,13 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateAfterDelay() async {
-    // 1. Force a minimum wait time of 3 seconds
-    // We use Future.wait to run the Timer and the Auth Check in parallel,
-    // ensuring the splash shows for AT LEAST 3 seconds, but doesn't delay extra
-    // if the internet connection is fast.
+    // We'll keep the min delay check, ensuring the splash shows for AT LEAST 2 seconds.
+    final minDelay = Future.delayed(const Duration(seconds: 2)); // Changed to 2 seconds
 
-    final minDelay = Future.delayed(const Duration(seconds: 3));
-
-    // 2. Perform the logic (Auth + Profile Check) while waiting
+    // Perform the logic (Auth + Profile Check) while waiting
     final nextScreenFuture = _determineNextScreen();
 
-    // 3. Wait for BOTH the 3-second timer AND the logic to finish
+    // Wait for BOTH the 2-second timer AND the logic to finish
     final results = await Future.wait([minDelay, nextScreenFuture]);
 
     // The second result in the list is the Widget returned by _determineNextScreen
@@ -41,13 +43,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    // 4. Navigate
+    // Navigate
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => nextScreen),
     );
   }
 
-  // Separated logic for cleanliness
+  // Separated logic for cleanliness (unchanged)
   Future<Widget> _determineNextScreen() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -78,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
         final bool isProfileComplete = data?['profile_completed'] ?? false;
 
         if (isProfileComplete) {
-          return HomePage(); // CampusData will load inside HomePage as before
+          return const HomePage(); // Use const if HomePage is stateless
         } else {
           return CompleteProfilePage(campusData: campusData);
         }
@@ -95,25 +97,58 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Define the size for the logo and the container
+    const double logoSize = 120.0;
+    const double indicatorSize = 140.0; // Slightly larger for the progress bar
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      // 1. Indigo Background
+      backgroundColor: Colors.indigo.shade900,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon or Logo
-            // Replace the Icon with this:
-            Image.asset(
-              'assets/images/logo.png', // Ensure this path matches your folder structure
-              height: 120,
-              width: 120,
-            ),
-            const SizedBox(height: 24),
+            // 2. Logo with Circular Progress Bar around it
+            SizedBox(
+              height: indicatorSize,
+              width: indicatorSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Circular Progress Indicator (Layer 1: Bottom)
+                  SizedBox(
+                    height: indicatorSize,
+                    width: indicatorSize,
+                    child: CircularProgressIndicator(
+                      color: Colors.white, // White indicator for contrast
+                      strokeWidth: 4,
+                      // The duration is controlled by the Future.delayed in _navigateAfterDelay
+                      // No need for an explicit value here as it should be running continuously
+                    ),
+                  ),
 
-            // Loading Indicator
-            const CircularProgressIndicator(
-              color: AppColors.primary,
-              strokeWidth: 3,
+                  // Logo Image (Layer 2: Top)
+                  Container(
+                    height: logoSize,
+                    width: logoSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white, // White background for the logo image
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      height: logoSize,
+                      width: logoSize,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -121,18 +156,18 @@ class _SplashScreenState extends State<SplashScreen> {
             const Text(
               "Campus Hub",
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                letterSpacing: 1.2,
+                color: Colors.white, // White text
+                letterSpacing: 1.5,
               ),
             ),
             const SizedBox(height: 8),
             const Text(
               "Loading your portal...",
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.black54,
+                fontSize: 18,
+                color: Colors.white70, // Light grey text
               ),
             ),
           ],

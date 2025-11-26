@@ -1,5 +1,7 @@
+
 import 'dart:convert';
 
+import 'package:campus_app/providers/theme_provider.dart';
 import 'package:campus_app/screens/Profile/complete_profile.dart';
 import 'package:campus_app/screens/groups/groups_screen.dart';
 import 'package:flutter/material.dart';
@@ -11,22 +13,9 @@ import 'firebase_options.dart';
 // Import your screens
 import 'screens/auth/splash_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/home/units_tab.dart';  // Ensure this file exists or update path
 import 'screens/auth/login_screen.dart';
-// We hide LoginPage from signup_screen to avoid naming conflicts if both define it
 import 'screens/auth/signup_screen.dart';
-
-// Import your providers
-// Ensure these files exist in your lib/providers folder
-import 'providers/user_provider.dart';
-import 'providers/group_provider.dart';
 import 'providers/chat_provider.dart';
-
-// Future<CampusData> loadCampusData() async {
-//   final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
-//   final campusMap = jsonDecode(jsonString) as Map<String, dynamic>;
-//   return CampusData(campusMap);
-// }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,9 +27,8 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => GroupsProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider())
       ],
       child: const MyApp(),
     ),
@@ -61,8 +49,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomePage(),
-    groups: (context) => const GroupsScreen(),
-    courseUnits: (context) => CourseUnitsScreen(),
+    groups: (context) => const GroupsTab(),
     login: (context) => const LoginPage(),
     signup: (context) => const SignUpPage(),
   };
@@ -76,15 +63,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return MaterialApp(
       title: 'Campus Hub',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        scaffoldBackgroundColor: Colors.white,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        useMaterial3: true,
-      ),
+      theme: themeProvider.themeData,
       // We do NOT set initialRoute here because we want 'home' to take precedence.
       // The SplashScreen acts as the gatekeeper to decide where to go next.
       home: const SplashScreen(),
