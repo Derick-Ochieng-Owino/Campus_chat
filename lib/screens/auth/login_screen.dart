@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // Update these imports to match your project structure
-import '../../core/constants/colors.dart';
+// import '../../core/constants/colors.dart'; // No longer needed
 import '../Profile/complete_profile.dart';
 import '../home/home_screen.dart';
 import 'forgot_password.dart';
@@ -84,6 +86,9 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     setState(() => _isLoading = true);
 
     try {
@@ -93,51 +98,64 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
-      // 2. Define 'user' here so it is available for the Firestore check
       User user = cred.user!;
+
+      // 2. Check if email is verified
+      if (!user.emailVerified) {
+        // Show dialog to resend verification email
+        await _showEmailNotVerifiedDialog(user);
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
       // 3. Check Firestore for user data
       final userDoc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
 
       if (!mounted) return;
 
+      if (campusData == null) {
+        throw Exception("Campus data not loaded. Please try again.");
+      }
+
       if (!userDoc.exists) {
         // Document missing? Treat as incomplete profile
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!,)));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!)));
         return;
       }
 
       final userData = userDoc.data();
       final role = userData?["role"] ?? "student";
 
-      if (role != "student") {
-        throw Exception("Only student accounts can log in here.");
+      // Allow specific roles to login
+      final allowedRoles = ['student', 'admin', 'class_rep', 'assistant'];
+      if (!allowedRoles.contains(role)) {
+        throw Exception("Access denied. Your role '$role' is not authorized.");
       }
 
       // 4. Check if profile is completed
       bool isProfileComplete = userData?['profile_completed'] ?? false;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login Successful!"), backgroundColor: AppColors.primary),
+        SnackBar(content: const Text("Login Successful!"), backgroundColor: colorScheme.primary),
       );
 
       // 5. Navigate based on status
       if (isProfileComplete) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
       } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!,)));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!)));
       }
 
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? "Auth error"), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.message ?? "Authentication error"), backgroundColor: colorScheme.error),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.toString()), backgroundColor: colorScheme.error),
         );
       }
     } finally {
@@ -145,28 +163,143 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _showEmailNotVerifiedDialog(User user) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Email Not Verified'),
+          content: const Text(
+            'Please verify your email address before logging in. '
+                'Check your inbox for the verification email.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Resend Email'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _sendVerificationEmail(user);
+                await _sendVerificationEmail(user);
+                _startEmailVerificationCheck(user);
+              },
+            ),
+          ],
+        );
+
+      },
+    );
+  }
+
+  Future<void> _sendVerificationEmail(User user) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    try {
+      await user.sendEmailVerification();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Verification email sent! Please check your inbox.'),
+            backgroundColor: colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send verification email: $e'),
+            backgroundColor: colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _startEmailVerificationCheck(User user) {
+    int checkCount = 0;
+    const maxChecks = 12; // 1 minute max (12 * 5 seconds)
+
+    Timer.periodic(const Duration(seconds: 5), (timer) async {
+      checkCount++;
+
+      if (checkCount >= maxChecks) {
+        timer.cancel();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Verification check timeout. Please try logging in again.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      await user.reload();
+      final updatedUser = FirebaseAuth.instance.currentUser;
+
+      if (updatedUser != null && updatedUser.emailVerified) {
+        timer.cancel();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Email verified! You can now log in.'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Helper for input decoration (simplifies the code below)
+    InputDecoration _themedInputDecoration({required String label, String? hint, required IconData icon, Widget? suffixIcon}) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: colorScheme.onSurface.withOpacity(0.6)), // Themed Icon color
+        // The rest of the decoration (fillColor, focusedBorder, enabledBorder)
+        // is inherited from InputDecorationTheme in theme_manager.dart.
+        suffixIcon: suffixIcon,
+      );
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor, // Dynamic Background
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
         child: SizedBox(
           height: size.height,
           child: Stack(
             children: [
-              // Top gradient / background
+              // Top gradient / background (Dynamic Theme Colors)
               Container(
                 height: size.height * 0.35,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.secondary],
+                    colors: [colorScheme.primary, colorScheme.secondary], // Dynamic Gradient
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.only(
+                  borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(40),
                       bottomRight: Radius.circular(40)),
                 ),
@@ -178,6 +311,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Card(
+                    color: theme.cardColor, // Dynamic Card Color
                     elevation: 8,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -190,12 +324,11 @@ class _LoginPageState extends State<LoginPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'Student Login',
-                              style: TextStyle(
-                                  fontSize: 26,
+                              style: theme.textTheme.headlineSmall!.copyWith( // Dynamic Text Style
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primary),
+                                  color: colorScheme.primary), // Dynamic Primary Color
                             ),
                             const SizedBox(height: 16),
 
@@ -215,20 +348,10 @@ class _LoginPageState extends State<LoginPage> {
                               focusNode: _emailFocusNode,
                               onTap: () => setState(() => _activeFieldIndex = 0),
                               keyboardType: TextInputType.emailAddress,
-                              decoration: InputDecoration(
-                                labelText: 'Student Email',
-                                hintText: 'example@$_requiredDomain',
-                                prefixIcon: const Icon(Icons.email),
-                                filled: true,
-                                fillColor: AppColors.lightGrey,
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
+                              decoration: _themedInputDecoration(
+                                label: 'Student Email',
+                                hint: 'example@$_requiredDomain',
+                                icon: Icons.email,
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -248,23 +371,15 @@ class _LoginPageState extends State<LoginPage> {
                               focusNode: _passwordFocusNode,
                               onTap: () => setState(() => _activeFieldIndex = 1),
                               obscureText: !_isPasswordVisible,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                prefixIcon: const Icon(Icons.lock),
-                                filled: true,
-                                fillColor: AppColors.lightGrey,
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
+                              decoration: _themedInputDecoration(
+                                label: 'Password',
+                                icon: Icons.lock,
                                 suffixIcon: IconButton(
                                   icon: Icon(_isPasswordVisible
                                       ? Icons.visibility
-                                      : Icons.visibility_off),
+                                      : Icons.visibility_off,
+                                    color: colorScheme.onSurface.withOpacity(0.6), // Themed visibility icon
+                                  ),
                                   onPressed: () => setState(
                                           () => _isPasswordVisible = !_isPasswordVisible),
                                 ),
@@ -282,20 +397,20 @@ class _LoginPageState extends State<LoginPage> {
                             SizedBox(
                               width: double.infinity,
                               child: _isLoading
-                                  ? const Center(
+                                  ? Center(
                                   child:
-                                  CircularProgressIndicator(color: AppColors.primary))
+                                  CircularProgressIndicator(color: colorScheme.primary)) // Dynamic Indicator
                                   : ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
+                                  backgroundColor: colorScheme.primary, // Dynamic Button BG
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16)),
                                 ),
                                 onPressed: _login,
-                                child: const Text(
+                                child: Text(
                                   'LOG IN',
-                                  style: TextStyle(fontSize: 18, color: Colors.white),
+                                  style: theme.textTheme.labelLarge!.copyWith(fontSize: 18, color: colorScheme.onPrimary), // Dynamic Text
                                 ),
                               ),
                             ),
@@ -309,9 +424,30 @@ class _LoginPageState extends State<LoginPage> {
                                     MaterialPageRoute(builder: (_) => const ForgotPasswordPage())
                                 );
                               },
-                              child: const Text(
+                              child: Text(
                                 'Forgot Password?',
-                                style: TextStyle(color: AppColors.primary),
+                                style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary), // Dynamic Primary Link
+                              ),
+                            ),
+
+                            // Add this to your login screen, below the "Forgot Password" button
+                            TextButton(
+                              onPressed: () async {
+                                final user = FirebaseAuth.instance.currentUser;
+                                if (user != null && !user.emailVerified) {
+                                  await _sendVerificationEmail(user);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Please log in first or check if you\'re already verified.'),
+                                      backgroundColor: theme.colorScheme.error,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Text(
+                                'Resend Verification Email',
+                                style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary),
                               ),
                             ),
 
@@ -320,9 +456,9 @@ class _LoginPageState extends State<LoginPage> {
                               alignment: WrapAlignment.center,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                const Text(
+                                Text(
                                   "Don't have an account?",
-                                  style: TextStyle(color: AppColors.darkGrey),
+                                  style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.onSurface.withOpacity(0.6)), // Dynamic Text
                                 ),
                                 TextButton(
                                   onPressed: () {
@@ -335,9 +471,9 @@ class _LoginPageState extends State<LoginPage> {
                                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                                     minimumSize: Size.zero,
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     "Register Now",
-                                    style: TextStyle(color: AppColors.primary),
+                                    style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold), // Dynamic Primary Link
                                   ),
                                 ),
                               ],

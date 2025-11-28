@@ -1,32 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Needed for real current user ID
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Assuming these are defined in your project
-import '../../core/constants/colors.dart';
-import '../../core/constants/text_styles.dart';
+// import '../../core/constants/colors.dart'; // NO LONGER NEEDED
+// import '../../core/constants/text_styles.dart'; // NO LONGER NEEDED
 import '../../models/chat_model.dart';
 import '../../providers/chat_provider.dart';
 
 // --- Helper Functions to Get Real User Data (Integration) ---
-// Note: In a real app, you'd get this from a dedicated AuthProvider
 String _getCurrentUserId() {
   return FirebaseAuth.instance.currentUser?.uid ?? 'DEFAULT_USER_ID';
 }
 String _getCurrentUserName() {
-  // Ideally, fetch this from your User document stored in state/provider
   return FirebaseAuth.instance.currentUser?.displayName ?? 'You';
 }
 // -----------------------------------------------------------
 
 
 class ChatScreen extends StatefulWidget {
-  // chatId is now MANDATORY for the unified stream logic
   final String chatId;
   final String? chatName;
   final String? otherUserId;
 
-  // Make chatId required for the simplified provider structure
   const ChatScreen({required this.chatId, this.chatName, this.otherUserId, super.key});
 
   @override
@@ -37,7 +33,6 @@ class _ChatScreenState extends State<ChatScreen> {
   late TextEditingController textController;
   final ScrollController _scrollController = ScrollController();
 
-  // Use the helper functions to get the actual user data
   late final String currentUserId;
   late final String currentUserName;
 
@@ -45,8 +40,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     textController = TextEditingController();
-
-    // Initialize user details
     currentUserId = _getCurrentUserId();
     currentUserName = _getCurrentUserName();
   }
@@ -58,7 +51,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // Scrolls to the latest message after sending
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -71,21 +63,15 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // --- Unified Send Message Function ---
-  // Inside _ChatScreenState
-
   void _sendMessage(ChatProvider chatProvider) {
     final text = textController.text.trim();
     if (text.isEmpty) return;
-    // Safety check is now implicit due to required nature of widget.chatId
 
-    // All logic is now simplified into one call to the unified sendMessage:
     chatProvider.sendMessage(
-      chatId: widget.chatId, // Mandatory
+      chatId: widget.chatId,
       text: text,
       senderName: currentUserName,
       senderId: currentUserId,
-      // Passes the receiverId only if it exists (for DMs)
       receiverId: widget.otherUserId,
     );
 
@@ -95,41 +81,42 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // CRITICAL: Ensure you are reading the ChatProvider here
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final chatProvider = Provider.of<ChatProvider>(context);
 
     // Determine chat title
     final title = widget.chatName ?? (widget.otherUserId == null ? 'Group Chat' : 'Direct Message');
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      // Use dynamic background color
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        // FIX: Remove extra comma and use dynamic surface color
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        title: Text(title, style: theme.textTheme.titleLarge), // Use themed text style
         elevation: 0,
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
-              // FIX: Use the unified chatStream and pass the mandatory chatId
               stream: chatProvider.chatStream(widget.chatId),
               builder: (context, snapshot) {
-                // If the user's internet is slow or the index is still building, show loading
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator(color: colorScheme.secondary));
                 }
                 if (snapshot.hasError) {
-                  // Show the error clearly (useful for debugging the index/Firestore rules)
-                  return Center(child: Text('Error loading messages: ${snapshot.error}', style: TextStyle(color: AppColors.darkGrey)));
+                  return Center(child: Text('Error loading messages: ${snapshot.error}', style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.error)));
                 }
 
                 final messages = snapshot.data ?? [];
 
                 if (messages.isEmpty) {
                   return Center(
-                    child: Text('Start the conversation in ${widget.chatName ?? 'this chat'}!', style: TextStyle(color: AppColors.darkGrey)),
+                    // Use themed text style and color
+                    child: Text('Start the conversation in ${widget.chatName ?? 'this chat'}!', style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.onSurface.withOpacity(0.7))),
                   );
                 }
 
@@ -143,7 +130,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     return _ChatBubble(
                       message: msg,
                       isMe: isMe,
-                      // Show name only if it's a group chat AND not the current user
                       showSenderName: widget.otherUserId == null && !isMe,
                     );
                   },
@@ -159,19 +145,17 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ... (The _buildFloatingInputBar and _ChatBubble widgets remain the same)
-  // ... (The code for those widgets is omitted here for brevity but remains valid)
-
   Widget _buildFloatingInputBar(ChatProvider chatProvider) {
-    // ... (Your existing _buildFloatingInputBar implementation) ...
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      // Glass/Floating effect container
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: colorScheme.surface, // Use theme surface color
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: colorScheme.onSurface.withOpacity(0.08),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -179,45 +163,37 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          // Attachment Button (New Feature UI)
+          // Attachment Button
           SizedBox(
             width: 40,
             height: 40,
             child: FloatingActionButton(
               mini: true,
               heroTag: null,
-              backgroundColor: AppColors.lightGrey,
+              backgroundColor: colorScheme.primaryContainer, // Use subtle primary color for light BG
               onPressed: () {
-                // Implement file/photo picker here
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Attachment Picker Tapped')),
                 );
               },
-              child: Icon(Icons.attach_file, color: AppColors.darkGrey, size: 20),
+              child: Icon(Icons.attach_file, color: colorScheme.onSurface.withOpacity(0.7), size: 20),
               elevation: 0,
             ),
           ),
           const SizedBox(width: 8),
 
-          // Text Input Field (Slightly cleaner)
+          // Text Input Field (Rely on InputDecorationTheme for border/fill color)
           Expanded(
             child: TextField(
               controller: textController,
               keyboardType: TextInputType.multiline,
               minLines: 1,
-              maxLines: 5, // Allows for multiline input
+              maxLines: 5,
               decoration: InputDecoration(
                 hintText: 'Message...',
-                fillColor: AppColors.lightGrey,
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                // Fill color and borders now come from InputDecorationTheme
               ),
-              onTap: _scrollToBottom, // Scroll down if keyboard opens
+              onTap: _scrollToBottom,
             ),
           ),
           const SizedBox(width: 8),
@@ -226,9 +202,9 @@ class _ChatScreenState extends State<ChatScreen> {
           FloatingActionButton(
             mini: true,
             heroTag: 'chatSendButton',
-            backgroundColor: AppColors.secondary,
+            // Colors are applied via FloatingActionButtonTheme in theme_manager
             onPressed: () => _sendMessage(chatProvider),
-            child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+            child: Icon(Icons.send_rounded, color: colorScheme.onSecondary, size: 20),
             elevation: 2,
           ),
         ],
@@ -237,8 +213,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-// ------------------- Enhanced Chat Bubble (Kept the same) -------------------
-// (This widget remains functionally identical to the version you provided)
+// ------------------- Enhanced Chat Bubble -------------------
+
 class _ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
@@ -252,9 +228,13 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     // --- Dynamic Styling ---
-    final Color bubbleColor = isMe ? AppColors.primary : Colors.white;
-    final Color textColor = isMe ? Colors.white : Colors.black87;
+    // FIX: Ensure text color is derived correctly based on bubble background
+    final Color bubbleColor = isMe ? colorScheme.primary : theme.cardColor;
+    final Color textColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
     final double radius = 18.0;
 
     return Align(
@@ -267,17 +247,15 @@ class _ChatBubble extends StatelessWidget {
 
         decoration: BoxDecoration(
           color: bubbleColor,
-          // --- Asymmetrical and sharper border style ---
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(radius),
             topRight: Radius.circular(radius),
             bottomLeft: Radius.circular(isMe ? radius : 4),
             bottomRight: Radius.circular(isMe ? 4 : radius),
           ),
-          // --- Softer elevation/shadow ---
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: colorScheme.onSurface.withOpacity(0.08),
               blurRadius: 3,
               offset: const Offset(0, 2),
             ),
@@ -292,15 +270,15 @@ class _ChatBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
                   message.senderName,
-                  style: TextStyle(
+                  style: theme.textTheme.bodySmall!.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.secondary,
+                      color: colorScheme.secondary, // Use dynamic secondary accent
                       fontSize: 13),
                 ),
               ),
 
             // Message Text
-            Text(message.text, style: AppTextStyles.chatMessage.copyWith(color: textColor)),
+            Text(message.text, style: theme.textTheme.bodyMedium!.copyWith(color: textColor)),
 
             // Timestamp (Subtle)
             Align(
@@ -309,9 +287,10 @@ class _ChatBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4.0, left: 8.0),
                 child: Text(
                   '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                  style: TextStyle(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontSize: 10,
-                    color: isMe ? Colors.white70 : AppColors.darkGrey,
+                    // Subdued color based on background
+                    color: isMe ? colorScheme.onPrimary.withOpacity(0.7) : colorScheme.onSurface.withOpacity(0.5),
                   ),
                 ),
               ),

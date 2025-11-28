@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../../core/constants/colors.dart';
-import '../Profile/edit_profile_screen.dart'; // Create this page for editing
-import '../Profile/settings_screen.dart';     // Create this page for settings
+import 'package:shimmer/shimmer.dart';
+import '../Profile/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,119 +13,172 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final user = FirebaseAuth.instance.currentUser;
+
+  /// Cached user data to avoid reloading
+  static Map<String, dynamic>? _cachedUserData;
+
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserData();
+    if (_cachedUserData != null) {
+      _userData = _cachedUserData;
+      _isLoading = false;
+    } else {
+      _fetchUserData();
+    }
   }
 
   Future<void> _fetchUserData() async {
     if (user == null) return;
+
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
           .get();
+      if (!mounted) return;
+
       if (doc.exists) {
         setState(() {
           _userData = doc.data();
+          _cachedUserData = _userData;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint('Error fetching user data: $e');
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
 
   void _signOut() async {
     await FirebaseAuth.instance.signOut();
-    Navigator.of(context).pushReplacementNamed('/'); // SplashScreen handles routing
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryIconColor = colorScheme.primary;
+
+    Widget shimmerBox({double width = double.infinity, double height = 16}) {
+      return Shimmer.fromColors(
+        baseColor: Colors.grey.shade300,
+        highlightColor: Colors.grey.shade100,
+        child: Container(
+          width: width,
+          height: height,
+          color: Colors.white,
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('My Profile'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         actions: [
-          PopupMenuButton<int>(
-            onSelected: (value) {
-              if (value == 0) {
-                // Edit profile
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EditProfileScreen(userData: _userData ?? {}),
-                  ),
-                );
-              } else if (value == 1) {
-                // Settings
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                );
-              }
+          IconButton(
+            icon: Icon(Icons.settings, color: colorScheme.onSurface),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 0, child: Text('Edit Profile')),
-              const PopupMenuItem(value: 1, child: Text('Settings')),
-            ],
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // --- Avatar Section (always fixed) ---
             CircleAvatar(
               radius: 60,
-              backgroundColor: AppColors.lightGrey,
-              child: Icon(Icons.person, size: 80, color: AppColors.darkGrey),
+              backgroundColor: colorScheme.surface,
+              child: Icon(Icons.person, size: 80, color: primaryIconColor),
             ),
             const SizedBox(height: 15),
-            Text(
+
+            // Name
+            _isLoading
+                ? shimmerBox(width: 180, height: 24)
+                : Text(
               _userData?['name'] ?? user?.displayName ?? 'Student Name',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: theme.textTheme.headlineSmall!
+                  .copyWith(fontWeight: FontWeight.bold),
             ),
-            Text(
+
+            const SizedBox(height: 5),
+
+            // Email
+            _isLoading
+                ? shimmerBox(width: 200, height: 16)
+                : Text(
               _userData?['email'] ?? user?.email ?? 'N/A',
-              style: const TextStyle(fontSize: 16, color: AppColors.darkGrey),
+              style: theme.textTheme.bodyMedium!.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.7)),
             ),
-            const Divider(height: 40),
-            _buildProfileTile(Icons.phone, 'Phone', _userData?['phone'] ?? 'N/A'),
-            _buildProfileTile(Icons.badge, 'Student ID', _userData?['reg_number'] ?? 'N/A'),
-            _buildProfileTile(Icons.school, 'Institution', _userData?['institution'] ?? 'JKUAT'),
-            _buildProfileTile(Icons.email, 'Primary Email', _userData?['email'] ?? 'N/A'),
+
+            Divider(height: 40, color: theme.dividerColor),
+
+            // --- Detail Tiles ---
+            _buildProfileTile(context, Icons.phone, 'Phone',
+                _isLoading ? null : _userData?['phone'] ?? 'N/A', shimmerBox),
+            _buildProfileTile(context, Icons.badge, 'Student ID',
+                _isLoading ? null : _userData?['reg_number'] ?? 'N/A', shimmerBox),
+            _buildProfileTile(context, Icons.school, 'Institution',
+                _isLoading ? null : _userData?['institution'] ?? 'JKUAT', shimmerBox),
+            _buildProfileTile(context, Icons.email, 'Primary Email',
+                _isLoading ? null : _userData?['email'] ?? 'N/A', shimmerBox),
+
             const SizedBox(height: 30),
+
+            // --- Sign Out Button (fixed) ---
             ElevatedButton.icon(
               onPressed: _signOut,
-              icon: const Icon(Icons.logout, color: Colors.white),
-              label: const Text('Sign Out', style: TextStyle(color: Colors.white)),
+              icon: Icon(Icons.logout, color: colorScheme.onError),
+              label: Text('Sign Out', style: TextStyle(color: colorScheme.onError)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: colorScheme.error,
+                padding:
+                const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileTile(IconData icon, String title, String subtitle) {
+  Widget _buildProfileTile(BuildContext context, IconData icon, String title,
+      String? subtitle, Widget Function({double width, double height}) shimmerBox) {
+    final theme = Theme.of(context);
+    final primaryIconColor = theme.colorScheme.primary;
+
     return ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle),
+      leading: Icon(icon, color: primaryIconColor),
+      title: Text(title,
+          style: theme.textTheme.bodyMedium!
+              .copyWith(fontWeight: FontWeight.w600)),
+      subtitle: subtitle != null
+          ? Text(subtitle, style: theme.textTheme.bodyMedium)
+          : shimmerBox(width: double.infinity, height: 14),
     );
   }
 }

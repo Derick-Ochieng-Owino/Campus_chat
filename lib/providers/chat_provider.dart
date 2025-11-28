@@ -15,7 +15,7 @@ class ChatProvider with ChangeNotifier {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-        .map((doc) => ChatMessage.fromMap(doc.data() as Map<String, dynamic>))
+        .map((doc) => ChatMessage.fromMap(doc.data()))
         .toList());
   }
 

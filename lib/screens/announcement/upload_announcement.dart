@@ -1,12 +1,13 @@
-import 'dart:io'; // Needed for File
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:file_picker/file_picker.dart'; // Import File Picker
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // Import Firebase Storage
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/constants/colors.dart';
+// Import AppColors is no longer strictly necessary, but we'll use theme
+// import '../../core/constants/colors.dart';
 
 class CreateAnnouncementScreen extends StatefulWidget {
   const CreateAnnouncementScreen({super.key});
@@ -42,7 +43,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     super.dispose();
   }
 
-  // --- 1. FILE PICKER LOGIC ---
+  // --- 1. FILE PICKER LOGIC (Unchanged) ---
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -62,17 +63,26 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     });
   }
 
-  // --- 2. DATE PICKER LOGIC ---
+  // --- 2. DATE PICKER LOGIC (Themed) ---
   Future<void> _pickDate() async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
+        // Theme the DatePicker using the current theme's primary color
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: AppColors.primary),
+          data: theme.copyWith(
+            colorScheme: colorScheme.copyWith(
+              primary: colorScheme.primary, // Use dynamic primary accent
+              onPrimary: colorScheme.onPrimary,
+              surface: colorScheme.surface,
+              onSurface: colorScheme.onSurface,
+            ),
           ),
           child: child!,
         );
@@ -85,9 +95,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         context: context,
         initialTime: TimeOfDay.now(),
         builder: (context, child) {
+          // Theme the TimePicker using the current theme's primary color
           return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(primary: AppColors.primary),
+            data: theme.copyWith(
+              colorScheme: colorScheme.copyWith(
+                primary: colorScheme.primary, // Use dynamic primary accent
+                onPrimary: colorScheme.onPrimary,
+                surface: colorScheme.surface,
+                onSurface: colorScheme.onSurface,
+              ),
             ),
             child: child!,
           );
@@ -108,12 +124,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     }
   }
 
-  // --- 3. UPLOAD & POST LOGIC ---
+  // --- 3. UPLOAD & POST LOGIC (Themed Snackbars) ---
   Future<void> _postAnnouncement() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a relevant date/time")),
+        SnackBar(
+          content: const Text("Please select a relevant date/time"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
       return;
     }
@@ -127,23 +146,20 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       String? fileUrl;
       String? fileName;
 
-      // A. Upload File to Firebase Storage (if selected)
+      // A. Upload File to Firebase Storage (if selected) - Logic Unchanged
       if (_pickedFile != null && _pickedFile!.path != null) {
         final file = File(_pickedFile!.path!);
-        // Create a unique path: announcements/timestamp_filename
         final storageRef = FirebaseStorage.instance
             .ref()
             .child('announcements/${DateTime.now().millisecondsSinceEpoch}_${_pickedFile!.name}');
 
-        // Upload
         final uploadTask = await storageRef.putFile(file);
 
-        // Get URL
         fileUrl = await uploadTask.ref.getDownloadURL();
         fileName = _pickedFile!.name;
       }
 
-      // B. Save to Firestore
+      // B. Save to Firestore - Logic Unchanged
       await FirebaseFirestore.instance.collection('announcements').add({
         'title': _titleController.text.trim(),
         'description': _descController.text.trim(),
@@ -151,16 +167,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         'target_date': Timestamp.fromDate(_selectedDate!),
         'created_at': FieldValue.serverTimestamp(),
         'author_id': user.uid,
-        // Add file fields (nullable)
         'attachment_url': fileUrl,
         'attachment_name': fileName,
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Announcement posted successfully"),
-            backgroundColor: AppColors.secondary,
+          SnackBar(
+            content: const Text("Announcement posted successfully"),
+            backgroundColor: Theme.of(context).colorScheme.secondary, // Dynamic Secondary Accent
           ),
         );
         Navigator.pop(context);
@@ -170,7 +185,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error posting: $e"),
-            backgroundColor: AppColors.error,
+            backgroundColor: Theme.of(context).colorScheme.error, // Dynamic Error Color
           ),
         );
       }
@@ -181,12 +196,20 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Helper to get consistent text color for labels
+    final Color labelColor = colorScheme.onSurface.withOpacity(0.8);
+    final Color subtleTextColor = colorScheme.onSurface.withOpacity(0.6);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor, // Dynamic Background
       appBar: AppBar(
-        title: const Text("New Announcement", style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.primary,
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text("New Announcement", style: theme.textTheme.titleLarge), // Themed Text Style
+        backgroundColor: colorScheme.surface, // Dynamic Surface/AppBar Color
+        foregroundColor: colorScheme.onSurface, // Dynamic Icon/Text Color
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -195,18 +218,23 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Category", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGrey)),
+              // --- TYPE DROPDOWN ---
+              Text("Category", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.lightGrey,
+                  // Rely on InputDecorationTheme or define colors explicitly for non-FormField dropdowns
+                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.onSurface.withOpacity(0.2)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedType,
                     isExpanded: true,
+                    style: theme.textTheme.bodyMedium,
+                    dropdownColor: theme.cardColor,
                     items: _types.map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -223,19 +251,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               ),
               const SizedBox(height: 24),
 
-              const Text("Details", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGrey)),
+              // --- DETAILS ---
+              Text("Details", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _titleController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Title",
                   hintText: "e.g., CAT 1 Dates",
-                  filled: true,
-                  fillColor: AppColors.lightGrey,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+                  // Fill color and border handled by InputDecorationTheme
                 ),
                 validator: (v) => v!.isEmpty ? "Title is required" : null,
               ),
@@ -243,15 +267,10 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               TextFormField(
                 controller: _descController,
                 maxLines: 4,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Description",
                   hintText: "Enter details...",
-                  filled: true,
-                  fillColor: AppColors.lightGrey,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+                  // Fill color and border handled by InputDecorationTheme
                 ),
                 validator: (v) => v!.isEmpty ? "Description is required" : null,
               ),
@@ -259,7 +278,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               const SizedBox(height: 24),
 
               // --- ATTACHMENT SECTION ---
-              const Text("Attachments (Optional)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGrey)),
+              Text("Attachments (Optional)", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
               const SizedBox(height: 8),
 
               if (_pickedFile == null)
@@ -270,22 +289,22 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.darkGrey.withOpacity(0.3), style: BorderStyle.solid),
+                      border: Border.all(color: subtleTextColor.withOpacity(0.5), style: BorderStyle.solid),
                       borderRadius: BorderRadius.circular(12),
-                      color: Colors.white,
+                      color: theme.cardColor, // Dynamic Card Color
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.cloud_upload_outlined, color: AppColors.primary, size: 32),
+                        Icon(Icons.cloud_upload_outlined, color: colorScheme.primary, size: 32), // Dynamic Primary
                         const SizedBox(height: 8),
                         Text(
                           "Tap to upload file",
-                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w500),
+                          style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           "PDF, DOC, PPT, JPG (Max 5MB)",
-                          style: TextStyle(color: AppColors.darkGrey, fontSize: 12),
+                          style: theme.textTheme.bodySmall!.copyWith(color: subtleTextColor, fontSize: 12),
                         ),
                       ],
                     ),
@@ -295,13 +314,13 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: colorScheme.primaryContainer, // Dynamic Primary Container BG
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primary),
+                    border: Border.all(color: colorScheme.primary), // Dynamic Primary Border
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.attach_file, color: AppColors.primary),
+                      Icon(Icons.attach_file, color: colorScheme.primary), // Dynamic Primary
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -309,19 +328,19 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           children: [
                             Text(
                               _pickedFile!.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                              style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               "${(_pickedFile!.size / 1024).toStringAsFixed(2)} KB",
-                              style: const TextStyle(fontSize: 12, color: AppColors.darkGrey),
+                              style: theme.textTheme.bodySmall!.copyWith(fontSize: 12, color: subtleTextColor),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, color: AppColors.error),
+                        icon: Icon(Icons.close, color: colorScheme.error), // Dynamic Error
                         onPressed: _clearFile,
                       ),
                     ],
@@ -330,7 +349,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
               const SizedBox(height: 24),
 
-              const Text("Timeline", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGrey)),
+              // --- TIMELINE ---
+              Text("Timeline", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
               const SizedBox(height: 8),
               InkWell(
                 onTap: _pickDate,
@@ -338,20 +358,20 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.primary),
+                    border: Border.all(color: colorScheme.primary), // Dynamic Primary
                     borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
+                    color: theme.cardColor, // Dynamic Card Color
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.event, color: AppColors.primary),
+                      Icon(Icons.event, color: colorScheme.primary), // Dynamic Primary
                       const SizedBox(width: 12),
                       Text(
                         _selectedDate == null
                             ? "Select Due Date / Sitting Date"
                             : DateFormat('EEE, MMM d, yyyy @ h:mm a').format(_selectedDate!),
-                        style: TextStyle(
-                          color: _selectedDate == null ? AppColors.darkGrey : Colors.black87,
+                        style: theme.textTheme.bodyMedium!.copyWith(
+                          color: _selectedDate == null ? subtleTextColor : colorScheme.onSurface,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -361,13 +381,14 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               ),
 
               const SizedBox(height: 32),
+              // --- POST BUTTON ---
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _postAnnouncement,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: colorScheme.primary, // Dynamic Primary
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -376,21 +397,21 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                   child: _isLoading
                       ? Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
+                    children: [
                       SizedBox(
                         height: 20, width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2), // Dynamic OnPrimary
                       ),
-                      SizedBox(width: 12),
-                      Text("UPLOADING...", style: TextStyle(color: Colors.white)),
+                      const SizedBox(width: 12),
+                      Text("UPLOADING...", style: theme.textTheme.labelLarge!.copyWith(color: colorScheme.onPrimary)),
                     ],
                   )
-                      : const Text(
+                      : Text(
                     "POST ANNOUNCEMENT",
-                    style: TextStyle(
+                    style: theme.textTheme.labelLarge!.copyWith(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary, // Dynamic OnPrimary
                     ),
                   ),
                 ),

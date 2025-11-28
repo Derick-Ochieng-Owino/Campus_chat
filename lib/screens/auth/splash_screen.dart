@@ -1,17 +1,13 @@
+import 'package:campus_app/core/widgets/loading_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/constants/colors.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- REQUIRED IMPORT
 import '../Profile/complete_profile.dart';
 import 'login_screen.dart';
 import '../home/home_screen.dart';
-
-// Assuming these classes are available in your project structure:
-// class CampusData { ... }
-// class HomePage extends StatelessWidget { ... }
-// class LoginPage extends StatelessWidget { ... }
-// class CompleteProfilePage extends StatelessWidget { ... }
+import 'onboarding_slider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,40 +25,48 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateAfterDelay() async {
-    // We'll keep the min delay check, ensuring the splash shows for AT LEAST 2 seconds.
-    final minDelay = Future.delayed(const Duration(seconds: 2)); // Changed to 2 seconds
+    // 1. Minimum display time
+    final minDelay = Future.delayed(const Duration(seconds: 2)); // Use 2s instead of 3s as noted in comment
 
-    // Perform the logic (Auth + Profile Check) while waiting
+    // 2. Perform loading logic
     final nextScreenFuture = _determineNextScreen();
 
-    // Wait for BOTH the 2-second timer AND the logic to finish
+    // 3. Wait for both to finish
     final results = await Future.wait([minDelay, nextScreenFuture]);
 
-    // The second result in the list is the Widget returned by _determineNextScreen
     final Widget nextScreen = results[1] as Widget;
 
     if (!mounted) return;
 
-    // Navigate
+    // 4. Navigate using replacement
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => nextScreen),
     );
   }
 
-  // Separated logic for cleanliness (unchanged)
+  // 🎯 CORE LOGIC: Determines the final screen, checking Onboarding first 🎯
   Future<Widget> _determineNextScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
+
+    // --- ONBOARDING CHECK ---
+    if (!hasCompletedOnboarding) {
+      // Return the wrapper, which will call the actual home check after the user skips/finishes.
+      return const OnboardingSliderWrapper();
+    }
+    // --- END ONBOARDING CHECK ---
+
+    // Continue with existing authentication and profile checks
     try {
       final user = FirebaseAuth.instance.currentUser;
 
-      // Load campus data first
+      // Load campus data first (required for CompleteProfilePage)
       CampusData campusData;
       try {
         final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
         campusData = CampusData.fromJsonString(jsonString);
-        debugPrint('loading campus JSON in Splash: ');
       } catch (e) {
-        debugPrint('Error loading campus JSON in Splash: $e');
-        campusData = CampusData(campuses: {}); // fallback
+        campusData = CampusData(campuses: {});
       }
 
       if (user == null) {
@@ -80,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
         final bool isProfileComplete = data?['profile_completed'] ?? false;
 
         if (isProfileComplete) {
-          return const HomePage(); // Use const if HomePage is stateless
+          return const HomePage();
         } else {
           return CompleteProfilePage(campusData: campusData);
         }
@@ -97,82 +101,100 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Define the size for the logo and the container
-    const double logoSize = 120.0;
-    const double indicatorSize = 140.0; // Slightly larger for the progress bar
-
     return Scaffold(
-      // 1. Indigo Background
       backgroundColor: Colors.indigo.shade900,
-      body: Center(
+      body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 2. Logo with Circular Progress Bar around it
-            SizedBox(
-              height: indicatorSize,
-              width: indicatorSize,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Circular Progress Indicator (Layer 1: Bottom)
-                  SizedBox(
-                    height: indicatorSize,
-                    width: indicatorSize,
-                    child: CircularProgressIndicator(
-                      color: Colors.white, // White indicator for contrast
-                      strokeWidth: 4,
-                      // The duration is controlled by the Future.delayed in _navigateAfterDelay
-                      // No need for an explicit value here as it should be running continuously
-                    ),
-                  ),
+            // --- LOGO + LOADING RING ---
+            AppLogoLoadingWidget(size: 80),
 
-                  // Logo Image (Layer 2: Top)
-                  Container(
-                    height: logoSize,
-                    width: logoSize,
-                    decoration: BoxDecoration(
-                      color: Colors.white, // White background for the logo image
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      height: logoSize,
-                      width: logoSize,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+            SizedBox(height: 20),
 
-            // Text
-            const Text(
-              "Campus Hub",
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white, // White text
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Loading your portal...",
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.white70, // Light grey text
-              ),
-            ),
+            FadeInAlmaMaterText()
           ],
         ),
       ),
+    );
+  }
+}
+
+
+class FadeInAlmaMaterText extends StatefulWidget {
+  const FadeInAlmaMaterText({super.key});
+
+  @override
+  State<FadeInAlmaMaterText> createState() => _FadeInAlmaMaterTextState();
+}
+
+class _FadeInAlmaMaterTextState extends State<FadeInAlmaMaterText>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut,
+      ),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return FadeTransition(
+      opacity: _opacity,
+      child: Text(
+        "Alma Mater",
+        style: TextStyle(
+          fontFamily: "AlmaFont",
+          fontSize: 30,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.3,
+          color: theme.colorScheme.onPrimary,
+        ),
+      ),
+    );
+  }
+// ❌ The duplicate _determineNextScreen logic is removed from here.
+}
+
+class OnboardingSliderWrapper extends StatelessWidget {
+  const OnboardingSliderWrapper({super.key});
+
+  void _handleOnboardingFinish(BuildContext context) {
+    // When the user finishes the slider, we push back to the initial route ('/')
+    // which causes the splash screen logic to run again.
+    // This time, 'has_completed_onboarding' will be true, and it will navigate to HomePage/LoginPage.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const SplashScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OnboardingSlider(
+      onFinish: () => _handleOnboardingFinish(context),
     );
   }
 }

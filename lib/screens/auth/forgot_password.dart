@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// REPLACE with your actual path
-import '../../core/constants/colors.dart';
+// Note: AppColors import is kept for reference but its values are overridden
+// import '../../core/constants/colors.dart';
 import 'ghost.dart';
 import 'login_screen.dart';
 
@@ -15,7 +15,7 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
-  final FocusNode _emailFocusNode = FocusNode(); // Added FocusNode
+  final FocusNode _emailFocusNode = FocusNode();
 
   bool _isLoading = false;
   bool _emailSent = false;
@@ -29,41 +29,27 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  // Simplified Decoration Helper
-  InputDecoration _getDecoration({required String label, String? hint, required IconData icon}) {
+  // Simplified Decoration Helper (Themed)
+  InputDecoration _getDecoration(BuildContext context, {required String label, String? hint, required IconData icon}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // The rest of the decoration is inherited from InputDecorationTheme in theme_manager
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(icon, color: AppColors.darkGrey),
-      filled: true,
-      fillColor: AppColors.lightGrey,
+      prefixIcon: Icon(icon, color: colorScheme.onSurface.withOpacity(0.6)), // Themed Icon color
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 1),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
     );
   }
 
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    // Simulate API call delay for UX
-    await Future.delayed(const Duration(seconds: 2));
+    setState(() => _isLoading = true);
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(
@@ -77,9 +63,34 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Password reset email sent!"),
-            backgroundColor: AppColors.primary,
+          SnackBar(
+            content: const Text("Password reset email sent! Check your inbox."),
+            backgroundColor: colorScheme.primary,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        String errorMessage;
+        switch (e.code) {
+          case 'user-not-found':
+            errorMessage = 'No account found with this email address.';
+            break;
+          case 'invalid-email':
+            errorMessage = 'Email address is invalid.';
+            break;
+          case 'too-many-requests':
+            errorMessage = 'Too many attempts. Please try again later.';
+            break;
+          default:
+            errorMessage = 'An error occurred. Please try again.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -88,8 +99,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: ${e.toString()}"),
-            backgroundColor: Colors.red, // Use standard red or AppColors.error
+            content: Text("Network error: ${e.toString()}"),
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -99,24 +110,26 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor, // Dynamic Background
       body: SingleChildScrollView(
         child: SizedBox(
           height: size.height,
           child: Stack(
             children: [
-              // Top gradient / background
+              // Top gradient / background (Themed)
               Container(
                 height: size.height * 0.35,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.secondary],
+                    colors: [colorScheme.primary, colorScheme.secondary], // Dynamic Gradient
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.only(
+                  borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(40),
                       bottomRight: Radius.circular(40)),
                 ),
@@ -129,6 +142,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Card(
                     elevation: 8,
+                    color: theme.cardColor, // Dynamic Card Color
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -140,20 +154,19 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'Reset Password',
-                              style: TextStyle(
-                                  fontSize: 26,
+                              style: theme.textTheme.headlineSmall!.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primary),
+                                  color: colorScheme.primary), // Dynamic Primary Color
                             ),
                             const SizedBox(height: 16),
 
-                            // FIXED GHOST: Only listening to Email
+                            // Ghost (No change needed)
                             InteractiveGhost(
                               controller: _emailController,
                               focusNode: _emailFocusNode,
-                              isPasswordField: false, // No password field here
+                              isPasswordField: false,
                               isPasswordVisible: false,
                               size: 120,
                             ),
@@ -161,27 +174,25 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
                             if (_emailSent) ...[
                               // Success message
-                              const Icon(
+                              Icon(
                                 Icons.check_circle,
-                                color: AppColors.primary,
+                                color: colorScheme.primary, // Dynamic Primary Color
                                 size: 64,
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Email Sent!',
-                                style: TextStyle(
-                                  fontSize: 20,
+                                style: theme.textTheme.titleMedium!.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.darkGrey,
+                                  color: colorScheme.onSurface, // Dynamic Text Color
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'Check your student email for password reset instructions',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.darkGrey.withOpacity(0.7),
+                                style: theme.textTheme.bodyMedium!.copyWith(
+                                  color: colorScheme.onSurface.withOpacity(0.7), // Dynamic Text Color
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -190,9 +201,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               Text(
                                 'Enter your student email address and we\'ll send you a link to reset your password.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.darkGrey.withOpacity(0.7),
+                                style: theme.textTheme.bodyMedium!.copyWith(
+                                  color: colorScheme.onSurface.withOpacity(0.7), // Dynamic Text Color
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -200,9 +210,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               // Email field
                               TextFormField(
                                 controller: _emailController,
-                                focusNode: _emailFocusNode, // Connect FocusNode
+                                focusNode: _emailFocusNode,
                                 keyboardType: TextInputType.emailAddress,
-                                decoration: _getDecoration(
+                                decoration: _getDecoration(context,
                                   label: 'Student Email',
                                   hint: 'example@$_requiredDomain',
                                   icon: Icons.email,
@@ -224,12 +234,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             SizedBox(
                               width: double.infinity,
                               child: _isLoading
-                                  ? const Center(
-                                child: CircularProgressIndicator(color: AppColors.primary),
+                                  ? Center(
+                                child: CircularProgressIndicator(color: colorScheme.primary), // Dynamic Indicator
                               )
                                   : ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
+                                  backgroundColor: colorScheme.primary, // Dynamic Button BG
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16)),
@@ -237,8 +247,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 onPressed: _emailSent ? null : _resetPassword,
                                 child: Text(
                                   _emailSent ? 'EMAIL SENT' : 'SEND RESET LINK',
-                                  style: const TextStyle(
-                                      fontSize: 18, color: Colors.white),
+                                  style: theme.textTheme.labelLarge!.copyWith(
+                                      fontSize: 18,
+                                      color: colorScheme.onPrimary), // Dynamic Text
                                 ),
                               ),
                             ),
@@ -253,9 +264,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                     _emailController.clear();
                                   });
                                 },
-                                child: const Text(
+                                child: Text(
                                   'Send to a different email?',
-                                  style: TextStyle(color: AppColors.primary),
+                                  style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary), // Dynamic Primary Link
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -269,9 +280,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                   MaterialPageRoute(builder: (_) => const LoginPage()),
                                 );
                               },
-                              child: const Text(
+                              child: Text(
                                 'Back to Login',
-                                style: TextStyle(color: AppColors.darkGrey),
+                                style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.onSurface.withOpacity(0.7)), // Dynamic Text
                               ),
                             ),
                           ],

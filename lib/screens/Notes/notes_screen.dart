@@ -1,23 +1,23 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/constants/colors.dart';
-import '../../core/constants/text_styles.dart';
 import '../../models/note_model.dart';
 import '../../models/unit_model.dart';
 import '../Profile/complete_profile.dart';
+import '../../core/widgets/loading_widget.dart';
 
-// ------------------- NotesScreen -------------------
 class NotesScreen extends StatefulWidget {
   final CampusData campusData; // Pass loaded CampusData
 
@@ -27,7 +27,10 @@ class NotesScreen extends StatefulWidget {
   State<NotesScreen> createState() => _NotesScreenState();
 }
 
-class _NotesScreenState extends State<NotesScreen> {
+class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClientMixin<NotesScreen>{
+  @override
+  bool get wantKeepAlive => true;
+
   late Future<List<Unit>> futureUnits;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -36,11 +39,9 @@ class _NotesScreenState extends State<NotesScreen> {
   String? _currentUserRole;
   String? _currentUserName;
   String? _currentUserId;
-
   static const String _cacheKey = 'cachedUnits_v2';
   static const Duration _cacheMaxAge = Duration(hours: 24);
 
-  // --- Color Mapping for File Types (UI Enhancement) ---
   Map<String, List<Color>> formatColors = {
     'PDF': [Colors.red.shade50, Colors.red.shade700],
     'PPT': [Colors.orange.shade50, Colors.orange.shade700],
@@ -57,7 +58,6 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadUserProfile();
   }
 
-  // --- Existing Logic (Unchanged) ---
   Future<void> _loadUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -65,30 +65,31 @@ class _NotesScreenState extends State<NotesScreen> {
 
     final doc = await _firestore.collection('users').doc(user.uid).get();
     final data = doc.data();
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() {
         _currentUserRole = data['role'] as String?;
-        _currentUserName = data['name'] as String? ?? user.displayName ?? 'Unknown';
+        _currentUserName =
+            data['name'] as String? ?? user.displayName ?? 'Unknown';
       });
     }
   }
 
   Future<List<Unit>> _loadUnitsOnce({bool forceRefresh = false}) async {
-    // [Existing SharedPreferences/Caching logic]
     final prefs = await SharedPreferences.getInstance();
 
     if (!forceRefresh) {
       final tsStr = prefs.getString('${_cacheKey}_ts');
-      if (tsStr != null) {
+      final cachedData = prefs.getString(_cacheKey);
+      if (cachedData != null && tsStr != null) {
         final ts = DateTime.tryParse(tsStr);
         if (ts != null && DateTime.now().difference(ts) < _cacheMaxAge) {
-          final cached = prefs.getString(_cacheKey);
-          if (cached != null) return Unit.decodeList(cached);
+          try {
+            return Unit.decodeList(cachedData);
+          } catch (_) {}
         }
       }
     }
 
-    // [Existing Firestore fetch logic]
     final user = _auth.currentUser;
     if (user == null) return [];
 
@@ -97,26 +98,34 @@ class _NotesScreenState extends State<NotesScreen> {
 
     final data = doc.data()!;
     final List<dynamic> registeredUnits = data['registered_units'] ?? [];
-
     final yearKey = data['year_key'] ?? "year1";
     final semesterKey = data['semester_key'] ?? "semester1";
-
     final year = int.tryParse(yearKey.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
-    final semester = int.tryParse(semesterKey.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+    final semester =
+        int.tryParse(semesterKey.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
 
-    return registeredUnits.map((u) {
-      return Unit(
-        id: u['code'],
-        name: u['title'],
-        year: year,
-        semester: semester,
-      );
-    }).toList();
+    final units = registeredUnits
+        .map((u) => Unit(
+      id: u['code'],
+      name: u['title'],
+      year: year,
+      semester: semester,
+    ))
+        .toList();
+
+    await prefs.setString(_cacheKey, Unit.encodeList(units));
+    await prefs.setString('${_cacheKey}_ts', DateTime.now().toIso8601String());
+
+    return units;
   }
 
   bool _canUpload() {
     final r = _currentUserRole ?? '';
     return r == 'admin' || r == 'class_rep' || r == 'assistant';
+  }
+
+  bool _isAdmin() {
+    return _currentUserRole == 'admin';
   }
 
   IconData _getIconForFormat(String format) {
@@ -136,63 +145,17 @@ class _NotesScreenState extends State<NotesScreen> {
         return Icons.insert_drive_file_rounded;
     }
   }
-  // --- End Existing Logic ---
-
-  Future<void> _downloadNoteWithProgress(Note note) async {
-    // ... [Original _downloadNoteWithProgress logic] ...
-    try {
-      setState(() => _downloadProgress[note.id] = 0.0);
-
-      final dir = await getApplicationDocumentsDirectory();
-      final ext = note.format.isNotEmpty ? '.${note.format.toLowerCase()}' : '';
-      final safeTitle = note.title.replaceAll(RegExp(r'[^\w\s-]'), '_');
-      final savePath = '${dir.path}/$safeTitle$ext';
-
-      await _dio.download(
-        note.url,
-        savePath,
-        onReceiveProgress: (rec, total) {
-          if (total != -1) {
-            setState(() => _downloadProgress[note.id] = rec / total);
-          }
-        },
-        options: Options(followRedirects: true, responseType: ResponseType.bytes),
-      );
-
-      setState(() => _downloadProgress.remove(note.id));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded "${note.title}" to $savePath')),
-        );
-      }
-    } catch (e) {
-      setState(() => _downloadProgress.remove(note.id));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _downloadAndOpenNote(Note note) async {
-    // ... [Original _downloadAndOpenNote logic] ...
     try {
       setState(() => _downloadProgress[note.id] = 0.0);
 
       if (kIsWeb) {
-        // On web, just open the URL in a new tab
-        if (!await launchUrl(Uri.parse(note.url), mode: LaunchMode.externalApplication)) {
+        if (!await launchUrl(Uri.parse(note.url),
+            mode: LaunchMode.externalApplication)) {
           throw 'Could not open URL';
         }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Opened "${note.title}" in browser')),
-          );
-        }
       } else {
-        // Mobile: download to device and open
         final dir = await getApplicationDocumentsDirectory();
         final ext = note.format.isNotEmpty ? '.${note.format.toLowerCase()}' : '';
         final safeTitle = note.title.replaceAll(RegExp(r'[^\w\s-]'), '_');
@@ -208,34 +171,40 @@ class _NotesScreenState extends State<NotesScreen> {
           },
         );
 
-        setState(() => _downloadProgress.remove(note.id));
-
         await OpenFile.open(savePath);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Opened "${note.title}"')),
-          );
-        }
       }
+
+      if (mounted) setState(() => _downloadProgress.remove(note.id));
     } catch (e) {
       setState(() => _downloadProgress.remove(note.id));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
-        );
-      }
-      debugPrint("Error opening note: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')),
+      );
     }
   }
 
+  Future<bool> _checkDuplicateNote(String unitId, String title, String format) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('units')
+          .doc(unitId)
+          .collection('notes')
+          .where('title', isEqualTo: title.trim())
+          .where('format', isEqualTo: format.toUpperCase())
+          .get();
+
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking duplicate: $e');
+      return false;
+    }
+  }
 
   Future<void> _uploadNoteToUnit(Unit unit) async {
-    // ... [Original _uploadNoteToUnit logic, slightly cleaned up for modern flutter] ...
     final user = _auth.currentUser;
     if (user == null || !_canUpload()) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Upload permission denied or not logged in')));
+          const SnackBar(content: Text('Upload permission denied')));
       return;
     }
 
@@ -244,18 +213,16 @@ class _NotesScreenState extends State<NotesScreen> {
 
     final file = kIsWeb ? res.files.single : File(res.files.single.path!);
     final originalName = res.files.single.name;
-
     final ext = originalName.contains('.') ? originalName.split('.').last : '';
-    final titleController = TextEditingController(text: originalName.replaceAll(RegExp(r'\..*$'), '')); // Remove extension from default title
+    final titleController =
+    TextEditingController(text: originalName.replaceAll(RegExp(r'\..*$'), ''));
 
-    // Show confirmation and title edit dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Upload'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Unit: ${unit.name}'),
             Text('File Type: ${ext.toUpperCase()}'),
@@ -270,19 +237,36 @@ class _NotesScreenState extends State<NotesScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Upload'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600, foregroundColor: Colors.white),
-          ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Upload'))
         ],
       ),
     );
 
     if (confirmed != true || titleController.text.trim().isEmpty) return;
 
-    // --- Upload Logic ---
+    // Check for duplicate note
+    final isDuplicate = await _checkDuplicateNote(
+        unit.id,
+        titleController.text.trim(),
+        ext.toUpperCase()
+    );
+
+    if (isDuplicate && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Note "${titleController.text.trim()}" already exists in ${unit.name}'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     try {
       final uploaderName = _currentUserName ?? user.displayName ?? 'Uploader';
       final storageRef = FirebaseStorage.instance
@@ -293,43 +277,14 @@ class _NotesScreenState extends State<NotesScreen> {
           ? storageRef.putData(res.files.single.bytes!)
           : storageRef.putFile(file as File);
 
-      // Show upload progress dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Uploading...'),
-          content: StreamBuilder<TaskSnapshot>(
-            stream: uploadTask.snapshotEvents,
-            builder: (context, snapshot) {
-              final prog = snapshot.data != null && snapshot.data!.totalBytes != 0
-                  ? snapshot.data!.bytesTransferred / snapshot.data!.totalBytes
-                  : 0.0;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: prog, color: Colors.blue.shade700),
-                  const SizedBox(height: 12),
-                  Text('${(prog * 100).toStringAsFixed(0)}% Uploaded'),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-                onPressed: () {
-                  uploadTask.cancel();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Cancel')),
-          ],
-        ),
-      );
-
-      await uploadTask; // Wait for completion
+      await uploadTask;
       final downloadUrl = await storageRef.getDownloadURL();
 
-      final noteDoc = _firestore.collection('units').doc(unit.id).collection('notes').doc();
+      final noteDoc = _firestore
+          .collection('units')
+          .doc(unit.id)
+          .collection('notes')
+          .doc();
       await noteDoc.set({
         'title': titleController.text.trim(),
         'url': downloadUrl,
@@ -339,25 +294,81 @@ class _NotesScreenState extends State<NotesScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        Navigator.of(context).pop(); // Close progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Note uploaded successfully!')));
-      }
+      // Create new announcement for the uploaded note
+      final announcementDoc = _firestore.collection('announcements').doc();
+      await announcementDoc.set({
+        'attachment_name': titleController.text.trim(),
+        'attachment_url': downloadUrl,
+        'author_id': user.uid,
+        'author_name': uploaderName,
+        'created_at': FieldValue.serverTimestamp(),
+        'description': 'New study material uploaded for ${unit.name}',
+        'title': 'New Note: ${titleController.text.trim()}',
+        'type': 'Notes',
+        'unit_id': unit.id,
+        'unit_name': unit.name,
+        'format': ext.toUpperCase(),
+        'target_date': Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
+        'expires_at': Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
+      });
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Note uploaded successfully!')),
+      );
     } catch (e) {
-      debugPrint('[DEBUG] Upload failed: $e');
-      if (mounted) {
-        // Pop any lingering dialogs
-        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: ${e.toString()}')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
     }
   }
 
+  Future<void> _deleteNote(Note note, String unitId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: Text('Are you sure you want to delete "${note.title}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
 
-  // ------------------- UI Enhancement: Unit Tile -------------------
+    if (confirmed != true) return;
+
+    try {
+      // Delete from Firestore
+      await _firestore
+          .collection('units')
+          .doc(unitId)
+          .collection('notes')
+          .doc(note.id)
+          .delete();
+
+      // Delete from Storage
+      final ref = FirebaseStorage.instance.refFromURL(note.url);
+      await ref.delete();
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Note "${note.title}" deleted successfully')),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+    }
+  }
+
   Widget _buildUnitTile(Unit unit) {
+    final theme = Theme.of(context);
     final notesStream = _firestore
         .collection('units')
         .doc(unit.id)
@@ -365,139 +376,126 @@ class _NotesScreenState extends State<NotesScreen> {
         .orderBy('createdAt', descending: true)
         .snapshots();
 
-    // Determine the color based on unit ID for consistent styling across units
     final hash = unit.id.length + unit.name.length;
-    final colorIndex = hash % 4; // Use a small number of colors
-    final unitColor = [Colors.indigo, Colors.teal, Colors.deepOrange, Colors.purple][colorIndex];
-
+    final colorIndex = hash % 4;
+    final unitColor = [
+      theme.colorScheme.secondary,
+      theme.colorScheme.primary,
+      Colors.orange,
+      Colors.indigo
+    ][colorIndex];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Card(
-        elevation: 4, // Lifted look
+        color: theme.cardColor,
+        elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          tilePadding:
+          const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: unitColor.withOpacity(0.1),
+              color: unitColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: unitColor.withOpacity(0.3)),
             ),
             child: Icon(Icons.menu_book_rounded, color: unitColor, size: 28),
           ),
-          title: Text(unit.name, style: AppTextStyles.title.copyWith(color: Colors.black87)),
-          subtitle: Text('${unit.id} | Year ${unit.year} • Sem ${unit.semester}', style: TextStyle(color: Colors.grey.shade600)),
-
+          title: Text(unit.name,
+              style: theme.textTheme.titleMedium!
+                  .copyWith(fontWeight: FontWeight.bold)),
+          subtitle: Text(
+              '${unit.id} | Year ${unit.year} • Sem ${unit.semester}',
+              style: theme.textTheme.bodySmall),
           children: [
-            const Divider(height: 1, thickness: 1),
-            StreamBuilder<QuerySnapshot>(
-              stream: notesStream,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-
-                final docs = snap.data?.docs ?? [];
-                if (docs.isEmpty) return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No notes uploaded yet. Be the first to upload!', style: TextStyle(fontStyle: FontStyle.italic)),
-                );
-
-                return Column(
-                  children: docs.map((d) => _buildNoteListItem(Note.fromFirestore(d))).toList(),
-                );
-              },
+            _NotesCacheStreamManager(
+              notesStream: notesStream,
+              unitId: unit.id,
+              buildNoteListItem: _buildNoteListItem,
+              canUpload: _canUpload(),
+              onUpload: () => _uploadNoteToUnit(unit),
+              isAdmin: _isAdmin(),
+              onDeleteNote: (note) => _deleteNote(note, unit.id),
             ),
-
-            // Upload Button
-            if (_canUpload())
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white),
-                  label: const Text('Upload Note for this Unit', style: TextStyle(color: Colors.white)),
-                  onPressed: () => _uploadNoteToUnit(unit),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: unitColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
 
-  // ------------------- UI Enhancement: Note List Item -------------------
-  Widget _buildNoteListItem(Note note) {
+  Widget _buildNoteListItem(Note note, {required bool isAdmin, required VoidCallback onDelete}) {
+    final theme = Theme.of(context);
     final progress = _downloadProgress[note.id];
     final format = note.format.toUpperCase();
-
-    // Get color scheme or fallback to a default grey/black
     final colors = formatColors[format] ?? [Colors.grey.shade100, Colors.black87];
     final icon = _getIconForFormat(format);
+    final accentBgColor =
+    theme.brightness == Brightness.dark ? colors[1].withOpacity(0.15) : colors[0];
+    final accentIconColor = theme.brightness == Brightness.dark ? colors[1] : colors[1];
 
     return InkWell(
       onTap: () => _downloadAndOpenNote(note),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+          border: Border(bottom: BorderSide(color: theme.dividerColor)),
         ),
         child: Row(
           children: [
-            // File Type Icon (Light BG/Dark Icon)
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: colors[0],
+                color: accentBgColor,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: colors[1], size: 24),
+              child: Icon(icon, color: accentIconColor, size: 24),
             ),
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    note.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(note.title,
+                      style: theme.textTheme.bodyMedium!
+                          .copyWith(fontWeight: FontWeight.w600, fontSize: 15),
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Text(
-                    '${format} | By ${note.uploaderName}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
+                  Text('${format} | By ${note.uploaderName}',
+                      style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
-
-            // Download/Progress Indicator
+            if (isAdmin) ...[
+              IconButton(
+                icon: Icon(Icons.delete_rounded, color: Colors.red.shade400),
+                onPressed: () => onDelete(),
+                tooltip: 'Delete Note',
+              ),
+              const SizedBox(width: 8),
+            ],
             SizedBox(
-              width: 100,
+              width: isAdmin ? 60 : 100,
               child: progress != null
                   ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  LinearProgressIndicator(value: progress, color: Colors.blue.shade500),
+                  LinearProgressIndicator(
+                    value: progress,
+                    color: theme.colorScheme.secondary,
+                  ),
                   const SizedBox(height: 4),
-                  Text('${(progress * 100).toStringAsFixed(0)}%', style: const TextStyle(fontSize: 10)),
+                  Text('${(progress * 100).toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall!
+                          .copyWith(fontSize: 10)),
                 ],
               )
                   : IconButton(
-                icon: const Icon(Icons.download_rounded, color: Colors.green),
+                icon: Icon(Icons.download_rounded,
+                    color: theme.colorScheme.secondary),
                 onPressed: () => _downloadAndOpenNote(note),
-                tooltip: kIsWeb ? 'Open/View' : 'Download/Open',
+                tooltip: 'Download',
               ),
             ),
           ],
@@ -506,30 +504,41 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: AppColors.background, // Use a very light grey background
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Course Notes & Units', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primary, // Dark primary color for AppBar
-        foregroundColor: Colors.white,
-        elevation: 0, // Flat app bar for modern look
+        title: Text('Course Notes & Units', style: theme.appBarTheme.titleTextStyle),
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.appBarTheme.foregroundColor,
+        elevation: theme.appBarTheme.elevation,
         actions: [
           if (_canUpload())
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Chip(
-                avatar: Icon(Icons.security, color: Colors.amber.shade900, size: 18),
-                label: const Text('Uploader Role', style: TextStyle(fontSize: 12, color: Colors.black87)),
-                backgroundColor: Colors.amber.shade100,
+                avatar: Icon(Icons.security,
+                    color: theme.colorScheme.secondary, size: 18),
+                label: Text('Uploader Role', style: theme.textTheme.bodySmall),
+                backgroundColor: theme.colorScheme.secondaryContainer,
+              ),
+            ),
+          if (_isAdmin())
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Chip(
+                avatar: Icon(Icons.admin_panel_settings,
+                    color: Colors.red.shade400, size: 18),
+                label: Text('Admin', style: theme.textTheme.bodySmall),
+                backgroundColor: Colors.red.shade50,
               ),
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () async {
-              // ... [Refresh Logic] ...
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove(_cacheKey);
               await prefs.remove('${_cacheKey}_ts');
@@ -537,7 +546,6 @@ class _NotesScreenState extends State<NotesScreen> {
                 futureUnits = _loadUnitsOnce(forceRefresh: true);
               });
             },
-            tooltip: 'Force refresh units list',
           ),
         ],
       ),
@@ -545,7 +553,7 @@ class _NotesScreenState extends State<NotesScreen> {
         future: futureUnits,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: AppLogoLoadingWidget(size: 80));
           }
           final units = snap.data ?? [];
           if (units.isEmpty) {
@@ -553,20 +561,151 @@ class _NotesScreenState extends State<NotesScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Text(
-                  'No units found for your profile.\nIf you think this is wrong, check your profile or contact admin.',
+                  'No units found for your profile.\nCheck profile or contact admin.',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.title.copyWith(color: Colors.grey.shade700),
+                  style: theme.textTheme.bodyMedium!
+                      .copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
                 ),
               ),
             );
           }
-
           return ListView.builder(
             padding: const EdgeInsets.only(bottom: 12, top: 8),
             itemCount: units.length,
             itemBuilder: (context, index) => _buildUnitTile(units[index]),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Stream & Cache manager for notes per unit
+class _NotesCacheStreamManager extends StatefulWidget {
+  final Stream<QuerySnapshot> notesStream;
+  final String unitId;
+  final Widget Function(Note note, {required bool isAdmin, required VoidCallback onDelete}) buildNoteListItem;
+  final bool canUpload;
+  final VoidCallback onUpload;
+  final bool isAdmin;
+  final Function(Note note) onDeleteNote;
+
+  const _NotesCacheStreamManager({
+    required this.notesStream,
+    required this.unitId,
+    required this.buildNoteListItem,
+    required this.canUpload,
+    required this.onUpload,
+    required this.isAdmin,
+    required this.onDeleteNote,
+  });
+
+  @override
+  State<_NotesCacheStreamManager> createState() => __NotesCacheStreamManagerState();
+}
+
+class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
+  List<Note>? _cachedNotes;
+  static const String _cacheNotesPrefix = 'cachedNotes_';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCache();
+  }
+
+  Future<void> _loadCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedData = prefs.getString(_cacheNotesPrefix + widget.unitId);
+
+    if (cachedData != null && mounted) {
+      try {
+        final List<dynamic> list = jsonDecode(cachedData);
+        setState(() {
+          _cachedNotes = list.map((e) => Note.fromJson(e)).toList();
+        });
+      } catch (e) {
+        debugPrint('Error decoding notes cache: $e');
+        _cachedNotes = null;
+      }
+    }
+  }
+
+  Future<void> _saveCache(List<Note> notes) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = jsonEncode(notes.map((n) => n.toMap()).toList());
+    await prefs.setString(_cacheNotesPrefix + widget.unitId, jsonString);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        StreamBuilder<QuerySnapshot>(
+          stream: widget.notesStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              if (_cachedNotes != null) return _buildNoteList(_cachedNotes!);
+              return buildNoteShimmer(context, count: 4);
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              _saveCache([]);
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('No notes uploaded yet.',
+                    style: theme.textTheme.bodyMedium!.copyWith(
+                        fontStyle: FontStyle.italic)),
+              );
+            }
+
+            final liveNotes = docs.map((d) => Note.fromFirestore(d)).toList();
+            _saveCache(liveNotes);
+            return _buildNoteList(liveNotes);
+          },
+        ),
+        if (widget.canUpload)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton.icon(
+              onPressed: widget.onUpload,
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Upload Note'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNoteList(List<Note> notes) {
+    return Column(
+      children: notes.map((note) => widget.buildNoteListItem(
+        note,
+        isAdmin: widget.isAdmin,
+        onDelete: () => widget.onDeleteNote(note),
+      )).toList(),
+    );
+  }
+
+  Widget buildNoteShimmer(BuildContext context, {int count = 3}) {
+    return Column(
+      children: List.generate(
+        count,
+            (index) => Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
       ),
     );
   }
