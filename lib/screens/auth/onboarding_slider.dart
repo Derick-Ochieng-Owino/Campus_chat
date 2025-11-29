@@ -203,49 +203,70 @@ class _OnboardingSliderState extends State<OnboardingSlider> {
   }
 
   Widget _buildSlide(BuildContext context, Map<String, String> slide, ColorScheme colorScheme) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Stack(
       children: [
-        // Image Placeholder (Ensure you have assets/images/onboarding_x.png)
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.4,
+        // FULLSCREEN IMAGE
+        Positioned.fill(
           child: Image.asset(
             slide['image']!,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) => Icon(Icons.school, size: 150, color: colorScheme.primary),
+            fit: BoxFit.cover,
           ),
         ),
-        const SizedBox(height: 40),
 
-        // Title
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Text(
-            slide['title']!,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+        // DARK GRADIENT OVERLAY (for readability)
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.1),
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(0.6),
+                  Colors.black.withOpacity(0.8),
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
 
-        // Description
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Text(
-            slide['description']!,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
+        // TEXT CONTENT
+        Positioned(
+          bottom: 120,
+          left: 20,
+          right: 20,
+          child: Column(
+            children: [
+              // Title
+              Text(
+                slide['title']!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Description
+              Text(
+                slide['description']!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+
 
   Widget _buildDot(int index, ColorScheme colorScheme) {
     return AnimatedContainer(

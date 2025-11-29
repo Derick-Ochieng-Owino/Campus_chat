@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../core/constants/theme_manager.dart';
+import '../widgets/theme_manager.dart';
 
 class ThemeProvider with ChangeNotifier {
   static const String _themeKey = 'user_selected_theme';

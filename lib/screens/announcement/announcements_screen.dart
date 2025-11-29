@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../core/constants/theme_manager.dart'; // Add shimmer dependency in pubspec.yaml
+import '../../widgets/theme_manager.dart'; // Add shimmer dependency in pubspec.yaml
 
 class AnnouncementScreen extends StatefulWidget {
   const AnnouncementScreen({super.key});

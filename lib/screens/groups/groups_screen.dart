@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../core/constants/theme_manager.dart';
+import '../../widgets/theme_manager.dart';
 
 class GroupsTab extends StatefulWidget {
   const GroupsTab({super.key});

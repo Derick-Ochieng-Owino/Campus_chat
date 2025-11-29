@@ -5,6 +5,7 @@ import 'package:campus_app/screens/home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -19,6 +20,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  final prefs = await SharedPreferences.getInstance();
+
+  final hasCompleted = prefs.getBool('has_completed_onboarding') ?? false;
+
   runApp(
     MultiProvider(
       providers: [
@@ -27,7 +32,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NotificationManager()) // Correct instantiation
       ],
-      child: const MyApp(),
+      child: MyApp(hasCompletedOnboarding: hasCompleted),
     ),
   );
 }
@@ -57,7 +62,9 @@ class AppRoutes {
 // MAIN APP WIDGET
 // ======================================================
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool hasCompletedOnboarding;
+
+  const MyApp({super.key, required this.hasCompletedOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +82,8 @@ class MyApp extends StatelessWidget {
 
       // Merge routes with the initial route redirecting to SplashScreen
       routes: {
-        AppRoutes.initial: (context) => const SplashScreen(),
+        AppRoutes.initial: (context) =>
+            SplashScreen(hasCompletedOnboarding: hasCompletedOnboarding),
         ...AppRoutes.routes,
       },
     );

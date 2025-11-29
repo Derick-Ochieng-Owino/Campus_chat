@@ -57,6 +57,7 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
+  // In your signup method, add more debugging:
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -74,8 +75,13 @@ class _SignUpPageState extends State<SignUpPage> {
 
       User user = userCredential.user!;
 
+      debugPrint('User created successfully: ${user.uid}');
+      debugPrint('User email: ${user.email}');
+      debugPrint('Email verified: ${user.emailVerified}');
+
       // Send verification email
       await user.sendEmailVerification();
+      debugPrint('Verification email sent');
 
       // Save user data to Firestore
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
@@ -87,12 +93,15 @@ class _SignUpPageState extends State<SignUpPage> {
         'email_verified': false,
       });
 
+      debugPrint('User data saved to Firestore');
+
       // Show success message with verification info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Account created! Please check your email for verification.'),
             backgroundColor: theme.colorScheme.primary,
+            duration: const Duration(seconds: 5),
           ),
         );
 
@@ -104,6 +113,7 @@ class _SignUpPageState extends State<SignUpPage> {
       }
 
     } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Error: ${e.code} - ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -113,6 +123,7 @@ class _SignUpPageState extends State<SignUpPage> {
         );
       }
     } catch (e) {
+      debugPrint('General Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

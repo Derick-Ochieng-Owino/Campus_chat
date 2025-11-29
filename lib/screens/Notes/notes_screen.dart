@@ -16,7 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/note_model.dart';
 import '../../models/unit_model.dart';
 import '../Profile/complete_profile.dart';
-import '../../core/widgets/loading_widget.dart';
+import '../../widgets/loading_widget.dart';
 
 class NotesScreen extends StatefulWidget {
   final CampusData campusData; // Pass loaded CampusData

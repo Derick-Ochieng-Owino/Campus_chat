@@ -16,12 +16,10 @@ class CampusData {
   factory CampusData.fromJsonString(String jsonString) {
     try {
       final map = jsonDecode(jsonString) as Map<String, dynamic>;
-      print('Decoded JSON top-level keys: ${map.keys}');
       return CampusData(
         campuses: map['campuses'] as Map<String, dynamic>,
       );
     } catch (e) {
-      print('Error parsing campus JSON: $e');
       return CampusData(campuses: {});
     }
   }

@@ -1,4 +1,4 @@
-import 'package:campus_app/core/widgets/loading_widget.dart';
+import 'package:campus_app/widgets/loading_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +10,9 @@ import '../home/home_screen.dart';
 import 'onboarding_slider.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final bool hasCompletedOnboarding;
+
+  const SplashScreen({super.key,required this.hasCompletedOnboarding});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -187,7 +189,7 @@ class OnboardingSliderWrapper extends StatelessWidget {
     // which causes the splash screen logic to run again.
     // This time, 'has_completed_onboarding' will be true, and it will navigate to HomePage/LoginPage.
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const SplashScreen()),
+      MaterialPageRoute(builder: (context) => const SplashScreen(hasCompletedOnboarding: true,)),
     );
   }
 
