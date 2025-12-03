@@ -1,3 +1,10 @@
+plugins {
+    id("com.android.application") version "8.9.1"
+    id("com.android.library") version "8.9.1"
+    id("org.jetbrains.kotlin.android") version "1.9.24"
+    id("com.google.gms.google-services") version "4.4.2"
+}
+
 allprojects {
     repositories {
         google()
@@ -12,6 +19,7 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }

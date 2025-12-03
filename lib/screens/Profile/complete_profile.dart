@@ -1,13 +1,10 @@
-// lib/screens/Profile/complete_profile.dart
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// import '../../core/constants/colors.dart'; // No longer needed
-import '../home/home_screen.dart';
+import 'personal_details.dart';
 
-// [CampusData class remains unchanged]
 class CampusData {
   final Map<String, dynamic> campuses;
 
@@ -107,7 +104,63 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     _campusData = widget.campusData;
   }
 
-  // --- Dropdown callbacks (unchanged) ---
+  Future<void> _navigateToPersonalDetails() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_selectedCampus == null ||
+        _selectedCollege == null ||
+        _selectedSchool == null ||
+        _selectedDept == null ||
+        _selectedCourse == null ||
+        _selectedYearKey == null ||
+        _selectedSemesterKey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please complete all fields'), backgroundColor: colorScheme.error));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final units = _campusData.getUnits(
+        _selectedCampus!,
+        _selectedCollege!,
+        _selectedSchool!,
+        _selectedDept!,
+        _selectedCourse!,
+        _selectedYearKey!,
+        _selectedSemesterKey!,
+      );
+
+      if (units.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Could not load units for selected profile. Please check selection.'), backgroundColor: colorScheme.error));
+        return;
+      }
+
+      final academicData = AcademicProfileData(
+        campus: _selectedCampus!,
+        college: _selectedCollege!,
+        school: _selectedSchool!,
+        department: _selectedDept!,
+        course: _selectedCourse!,
+        yearKey: _selectedYearKey!,
+        semesterKey: _selectedSemesterKey!,
+        registeredUnits: units,
+      );
+
+      if (!mounted) return;
+      // Navigate to the next step
+      Navigator.push(context, MaterialPageRoute(builder: (_) => PersonalDetailsPage(academicData: academicData)));
+
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error preparing data: $e'), backgroundColor: colorScheme.error));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _onCampusChanged(String? campus) {
     setState(() {
       _selectedCampus = campus;
@@ -198,62 +251,62 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   }
 
   /// Save profile: collects selected units and writes user doc
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    if (_selectedCampus == null ||
-        _selectedCollege == null ||
-        _selectedSchool == null ||
-        _selectedDept == null ||
-        _selectedCourse == null ||
-        _selectedYearKey == null ||
-        _selectedSemesterKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please complete all fields'), backgroundColor: colorScheme.error));
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('No logged in user');
-
-      final units = _campusData.getUnits(
-        _selectedCampus!,
-        _selectedCollege!,
-        _selectedSchool!,
-        _selectedDept!,
-        _selectedCourse!,
-        _selectedYearKey!,
-        _selectedSemesterKey!,
-      );
-
-      // Save user doc: store course/year/semester as the raw keys (you can map them in client)
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'profile_completed': true,
-        'campus': _selectedCampus,
-        'college': _selectedCollege,
-        'school': _selectedSchool,
-        'department': _selectedDept,
-        'course': _selectedCourse,
-        'year_key': _selectedYearKey,
-        'semester_key': _selectedSemesterKey,
-        'registered_units': units, // list of {code, title, type}
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Profile updated'), backgroundColor: colorScheme.primary));
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: colorScheme.error));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+  // Future<void> _saveProfile() async {
+  //   if (!_formKey.currentState!.validate()) return;
+  //
+  //   final theme = Theme.of(context);
+  //   final colorScheme = theme.colorScheme;
+  //
+  //   if (_selectedCampus == null ||
+  //       _selectedCollege == null ||
+  //       _selectedSchool == null ||
+  //       _selectedDept == null ||
+  //       _selectedCourse == null ||
+  //       _selectedYearKey == null ||
+  //       _selectedSemesterKey == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please complete all fields'), backgroundColor: colorScheme.error));
+  //     return;
+  //   }
+  //
+  //   setState(() => _isLoading = true);
+  //
+  //   try {
+  //     final user = FirebaseAuth.instance.currentUser;
+  //     if (user == null) throw Exception('No logged in user');
+  //
+  //     final units = _campusData.getUnits(
+  //       _selectedCampus!,
+  //       _selectedCollege!,
+  //       _selectedSchool!,
+  //       _selectedDept!,
+  //       _selectedCourse!,
+  //       _selectedYearKey!,
+  //       _selectedSemesterKey!,
+  //     );
+  //
+  //     // Save user doc: store course/year/semester as the raw keys (you can map them in client)
+  //     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+  //       'profile_completed': true,
+  //       'campus': _selectedCampus,
+  //       'college': _selectedCollege,
+  //       'school': _selectedSchool,
+  //       'department': _selectedDept,
+  //       'course': _selectedCourse,
+  //       'year_key': _selectedYearKey,
+  //       'semester_key': _selectedSemesterKey,
+  //       'registered_units': units, // list of {code, title, type}
+  //       'updated_at': FieldValue.serverTimestamp(),
+  //     }, SetOptions(merge: true));
+  //
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Profile updated'), backgroundColor: colorScheme.primary));
+  //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+  //   } catch (e) {
+  //     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: colorScheme.error));
+  //   } finally {
+  //     if (mounted) setState(() => _isLoading = false);
+  //   }
+  // }
 
   // UI helper: present friendly label for yearKey e.g. "year1" -> "Year 1"
   String _displayYear(String key) {
@@ -395,17 +448,30 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                 const SizedBox(height: 32),
 
                                 // Save Button
+                                // SizedBox(
+                                //   width: double.infinity,
+                                //   child: _isLoading
+                                //       ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+                                //       : ElevatedButton(
+                                //     onPressed: _saveProfile,
+                                //     style: ElevatedButton.styleFrom(
+                                //         backgroundColor: colorScheme.primary,
+                                //         padding: const EdgeInsets.symmetric(vertical: 16),
+                                //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                                //     child: Text('FINISH & VIEW UNITS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
+                                //   ),
+                                // ),
                                 SizedBox(
                                   width: double.infinity,
                                   child: _isLoading
                                       ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
                                       : ElevatedButton(
-                                    onPressed: _saveProfile,
+                                    onPressed: _navigateToPersonalDetails,
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: colorScheme.primary,
                                         padding: const EdgeInsets.symmetric(vertical: 16),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                                    child: Text('FINISH & VIEW UNITS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
+                                    child: Text('NEXT: PERSONAL DETAILS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
                                   ),
                                 ),
                               ],

@@ -203,67 +203,77 @@ class _OnboardingSliderState extends State<OnboardingSlider> {
   }
 
   Widget _buildSlide(BuildContext context, Map<String, String> slide, ColorScheme colorScheme) {
-    return Stack(
-      children: [
-        // FULLSCREEN IMAGE
-        Positioned.fill(
-          child: Image.asset(
-            slide['image']!,
-            fit: BoxFit.cover,
+    return Scaffold(
+      body: Stack(
+        children: [
+          // FULLSCREEN BACKGROUND IMAGE
+          Positioned.fill(
+            child: Image.asset(
+              slide['image']!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
           ),
-        ),
 
-        // DARK GRADIENT OVERLAY (for readability)
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.1),
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(0.6),
-                  Colors.black.withOpacity(0.8),
-                ],
+          // DARK GRADIENT OVERLAY
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.2),
+                    Colors.black.withOpacity(0.5),
+                    Colors.black.withOpacity(0.7),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
 
-        // TEXT CONTENT
-        Positioned(
-          bottom: 120,
-          left: 20,
-          right: 20,
-          child: Column(
-            children: [
-              // Title
-              Text(
-                slide['title']!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 20),
+          // CONTENT
+          SafeArea(
+            child: Column(
+              children: [
+                const Spacer(), // Pushes content down
 
-              // Description
-              Text(
-                slide['description']!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  height: 1.4,
+                // Text Content
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      Text(
+                        slide['title']!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 28,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        slide['description']!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 18,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 80), // Space for indicators
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

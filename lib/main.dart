@@ -1,36 +1,43 @@
-import 'package:campus_app/providers/notification_provider.dart';
-import 'package:campus_app/providers/theme_provider.dart';
-import 'package:campus_app/screens/groups/groups_screen.dart';
-import 'package:campus_app/screens/home/home_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
+
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'firebase_options.dart';
+
+import 'providers/chat_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/notification_provider.dart';
+
 import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
-import 'providers/chat_provider.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/groups/groups_screen.dart';
 
-void main() async {
+import 'firebase_options.dart';
+
+// Conditional import for Windows (only if you have a custom wrapper)
+import 'firebase_stub.dart'
+if (dart.library.io) 'firebase_windows.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase (Necessary for FCM and Firestore)
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase for all platforms
+  await FirebaseInitializer.initialize();
 
+  // Check if user has completed onboarding
   final prefs = await SharedPreferences.getInstance();
-
   final hasCompleted = prefs.getBool('has_completed_onboarding') ?? false;
 
   runApp(
     MultiProvider(
       providers: [
-        // Core Providers: All top-level services accessible throughout the app
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationManager()) // Correct instantiation
+        ChangeNotifierProvider(create: (_) => NotificationManager()),
       ],
       child: MyApp(hasCompletedOnboarding: hasCompleted),
     ),
@@ -38,7 +45,26 @@ void main() async {
 }
 
 // ======================================================
-// ROUTES CONFIGURATION (Centralizing navigation paths)
+// Firebase Initialization Helper
+// ======================================================
+class FirebaseInitializer {
+  static Future<void> initialize() async {
+    if (!kIsWeb && Platform.isWindows) {
+      // Windows-specific Firebase initialization if needed
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } else {
+      // Normal Firebase initialization for web/mobile
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  }
+}
+
+// ======================================================
+// ROUTES CONFIGURATION
 // ======================================================
 class AppRoutes {
   static const String initial = "/";
@@ -48,13 +74,10 @@ class AppRoutes {
   static const String signup = '/signup';
 
   static Map<String, WidgetBuilder> get routes => {
-    // The main entry point after authentication/splash checks
     home: (context) => const HomePage(),
     groups: (context) => const GroupsTab(),
     login: (context) => const LoginPage(),
     signup: (context) => const SignUpPage(),
-    // Note: SplashScreen handles the very first routing decision,
-    // so it uses Navigator.pushReplacementNamed inside its logic.
   };
 }
 
@@ -68,19 +91,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Read the ThemeProvider for dynamic theming
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       title: 'Campus Hub',
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,
-
-      // Set the SplashScreen as the initial screen
-      // It will then redirect using the named routes defined above.
       initialRoute: AppRoutes.initial,
-
-      // Merge routes with the initial route redirecting to SplashScreen
       routes: {
         AppRoutes.initial: (context) =>
             SplashScreen(hasCompletedOnboarding: hasCompletedOnboarding),
