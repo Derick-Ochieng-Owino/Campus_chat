@@ -24,7 +24,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     // Initialize controllers with existing data
-    _nameController = TextEditingController(text: widget.userData['name'] ?? '');
+    _nameController = TextEditingController(text: widget.userData['full_name'] ?? '');
     _nicknameController = TextEditingController(text: widget.userData['nickname'] ?? '');
     _phoneController = TextEditingController(text: widget.userData['phone'] ?? '');
   }
@@ -50,7 +50,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': _nameController.text.trim(),
+        'full_name': _nameController.text.trim(),
         'nickname': _nicknameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'updated_at': FieldValue.serverTimestamp(),

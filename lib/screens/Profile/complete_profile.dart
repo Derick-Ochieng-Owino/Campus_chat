@@ -1,62 +1,65 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'personal_details.dart';
 
-class CampusData {
-  final Map<String, dynamic> campuses;
+class UniversityData {
+  final Map<String, dynamic> universities;
 
-  CampusData({required this.campuses});
+  UniversityData({required this.universities});
 
-  factory CampusData.fromJsonString(String jsonString) {
+  factory UniversityData.fromJsonString(String jsonString) {
     try {
       final map = jsonDecode(jsonString) as Map<String, dynamic>;
-      return CampusData(
-        campuses: map['campuses'] as Map<String, dynamic>,
+      return UniversityData(
+        universities: map['universities'] as Map<String, dynamic>,
       );
     } catch (e) {
-      return CampusData(campuses: {});
+      return UniversityData(universities: {});
     }
   }
 
-  List<String> getCampuses() {
-    return campuses.keys.toList();
+  List<String> getUniversities() {
+    return universities.keys.toList();
   }
 
-  List<String> getColleges(String campus) {
-    final c = campuses[campus]?['colleges'] as Map<String, dynamic>?;
+  List<String> getCampuses(String university) {
+    final c = universities[university]?['campuses'] as Map<String, dynamic>?;
     return c?.keys.toList() ?? [];
   }
 
-  List<String> getSchools(String campus, String college) {
-    final s = campuses[campus]?['colleges']?[college]?['schools'] as Map<String, dynamic>?;
+  List<String> getColleges(String university, String campus) {
+    final c = universities[university]?['campuses']?[campus]?['colleges'] as Map<String, dynamic>?;
+    return c?.keys.toList() ?? [];
+  }
+
+  List<String> getSchools(String university, String campus, String college) {
+    final s = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools'] as Map<String, dynamic>?;
     return s?.keys.toList() ?? [];
   }
 
-  List<String> getDepartments(String campus, String college, String school) {
-    final d = campuses[campus]?['colleges']?[college]?['schools']?[school]?['departments'] as Map<String, dynamic>?;
+  List<String> getDepartments(String university, String campus, String college, String school) {
+    final d = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments'] as Map<String, dynamic>?;
     return d?.keys.toList() ?? [];
   }
 
-  List<String> getCourses(String campus, String college, String school, String dept) {
-    final courses = campuses[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses'] as Map<String, dynamic>?;
+  List<String> getCourses(String university, String campus, String college, String school, String dept) {
+    final courses = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses'] as Map<String, dynamic>?;
     return courses?.keys.toList() ?? [];
   }
 
-  List<String> getYears(String campus, String college, String school, String dept, String course) {
-    final years = campuses[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years'] as Map<String, dynamic>?;
+  List<String> getYears(String university, String campus, String college, String school, String dept, String course) {
+    final years = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years'] as Map<String, dynamic>?;
     return years?.keys.toList() ?? [];
   }
 
-  List<String> getSemesters(String campus, String college, String school, String dept, String course, String yearKey) {
-    final sems = campuses[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey] as Map<String, dynamic>?;
+  List<String> getSemesters(String university, String campus, String college, String school, String dept, String course, String yearKey) {
+    final sems = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey] as Map<String, dynamic>?;
     return sems?.keys.toList() ?? [];
   }
 
-  List<Map<String, dynamic>> getUnits(String campus, String college, String school, String dept, String course, String yearKey, String semesterKey) {
-    final items = campuses[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey]?[semesterKey];
+  List<Map<String, dynamic>> getUnits(String university, String campus, String college, String school, String dept, String course, String yearKey, String semesterKey) {
+    final items = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey]?[semesterKey];
     if (items == null) return [];
     try {
       return List<Map<String, dynamic>>.from((items as List).map((e) => Map<String, dynamic>.from(e)));
@@ -66,11 +69,10 @@ class CampusData {
   }
 }
 
-
 /// CompleteProfilePage that uses the embedded JSON and writes the selected profile into Firestore
 class CompleteProfilePage extends StatefulWidget {
-  final CampusData campusData;
-  const CompleteProfilePage({super.key, required this.campusData});
+  final UniversityData universityData;
+  const CompleteProfilePage({super.key, required this.universityData});
 
   @override
   State<CompleteProfilePage> createState() => _CompleteProfilePageState();
@@ -78,10 +80,11 @@ class CompleteProfilePage extends StatefulWidget {
 
 class _CompleteProfilePageState extends State<CompleteProfilePage> {
   final _formKey = GlobalKey<FormState>();
-  late final CampusData _campusData;
+  late final UniversityData _universityData;
 
   bool _isLoading = false;
 
+  String? _selectedUniversity;
   String? _selectedCampus;
   String? _selectedCollege;
   String? _selectedSchool;
@@ -90,6 +93,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   String? _selectedYearKey; // e.g. "year1"
   String? _selectedSemesterKey; // e.g. "semester1"
 
+  List<String> _universities = [];
+  List<String> _campuses = [];
   List<String> _colleges = [];
   List<String> _schools = [];
   List<String> _departments = [];
@@ -101,7 +106,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   @override
   void initState() {
     super.initState();
-    _campusData = widget.campusData;
+    _universityData = widget.universityData;
+    _universities = _universityData.getUniversities();
   }
 
   Future<void> _navigateToPersonalDetails() async {
@@ -110,7 +116,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    if (_selectedCampus == null ||
+    if (_selectedUniversity == null ||
+        _selectedCampus == null ||
         _selectedCollege == null ||
         _selectedSchool == null ||
         _selectedDept == null ||
@@ -124,7 +131,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     setState(() => _isLoading = true);
 
     try {
-      final units = _campusData.getUnits(
+      final units = _universityData.getUnits(
+        _selectedUniversity!,
         _selectedCampus!,
         _selectedCollege!,
         _selectedSchool!,
@@ -140,6 +148,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       }
 
       final academicData = AcademicProfileData(
+        university: _selectedUniversity!,
         campus: _selectedCampus!,
         college: _selectedCollege!,
         school: _selectedSchool!,
@@ -161,7 +170,33 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     }
   }
 
+  void _onUniversityChanged(String? university) {
+    setState(() {
+      _selectedUniversity = university;
+      // Reset all subsequent selections
+      _selectedCampus = null;
+      _selectedCollege = null;
+      _selectedSchool = null;
+      _selectedDept = null;
+      _selectedCourse = null;
+      _selectedYearKey = null;
+      _selectedSemesterKey = null;
+
+      // Load the next level: Campuses
+      _campuses = university == null ? [] : _universityData.getCampuses(university);
+
+      // Clear all lower-level lists
+      _colleges = [];
+      _schools = [];
+      _departments = [];
+      _courses = [];
+      _years = [];
+      _semesters = [];
+    });
+  }
+
   void _onCampusChanged(String? campus) {
+    if (_selectedUniversity == null) return;
     setState(() {
       _selectedCampus = campus;
       _selectedCollege = null;
@@ -171,8 +206,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedYearKey = null;
       _selectedSemesterKey = null;
 
-      _colleges = campus == null ? [] : _campusData.getColleges(campus);
-      _schools = [];
+      _colleges = campus == null ? [] : _universityData.getColleges(_selectedUniversity!, campus);
       _departments = [];
       _courses = [];
       _years = [];
@@ -181,7 +215,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   }
 
   void _onCollegeChanged(String? college) {
-    if (_selectedCampus == null) return;
+    if (_selectedUniversity == null || _selectedCampus == null) return;
     setState(() {
       _selectedCollege = college;
       _selectedSchool = null;
@@ -190,7 +224,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedYearKey = null;
       _selectedSemesterKey = null;
 
-      _schools = (college == null) ? [] : _campusData.getSchools(_selectedCampus!, college);
+      _schools = (college == null) ? [] : _universityData.getSchools(_selectedUniversity!, _selectedCampus!, college);
       _departments = [];
       _courses = [];
       _years = [];
@@ -199,7 +233,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   }
 
   void _onSchoolChanged(String? school) {
-    if (_selectedCampus == null || _selectedCollege == null) return;
+    if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null) return;
     setState(() {
       _selectedSchool = school;
       _selectedDept = null;
@@ -207,7 +241,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedYearKey = null;
       _selectedSemesterKey = null;
 
-      _departments = (school == null) ? [] : _campusData.getDepartments(_selectedCampus!, _selectedCollege!, school);
+      _departments = (school == null) ? [] : _universityData.getDepartments(_selectedUniversity!, _selectedCampus!, _selectedCollege!, school);
       _courses = [];
       _years = [];
       _semesters = [];
@@ -215,98 +249,40 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   }
 
   void _onDeptChanged(String? dept) {
-    if (_selectedCampus == null || _selectedCollege == null || _selectedSchool == null) return;
+    if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null || _selectedSchool == null) return;
     setState(() {
       _selectedDept = dept;
       _selectedCourse = null;
       _selectedYearKey = null;
       _selectedSemesterKey = null;
 
-      _courses = (dept == null) ? [] : _campusData.getCourses(_selectedCampus!, _selectedCollege!, _selectedSchool!, dept);
+      _courses = (dept == null) ? [] : _universityData.getCourses(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, dept);
       _years = [];
       _semesters = [];
     });
   }
 
   void _onCourseChanged(String? course) {
-    if (_selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null) return;
+    if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null) return;
     setState(() {
       _selectedCourse = course;
       _selectedYearKey = null;
       _selectedSemesterKey = null;
 
-      _years = (course == null) ? [] : _campusData.getYears(_selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, course);
+      _years = (course == null) ? [] : _universityData.getYears(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, course);
       _semesters = [];
     });
   }
 
   void _onYearChanged(String? yearKey) {
-    if (_selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null || _selectedCourse == null) return;
+    if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null || _selectedCourse == null) return;
     setState(() {
       _selectedYearKey = yearKey;
       _selectedSemesterKey = null;
 
-      _semesters = (yearKey == null) ? [] : _campusData.getSemesters(_selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, yearKey);
+      _semesters = (yearKey == null) ? [] : _universityData.getSemesters(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, yearKey);
     });
   }
-
-  /// Save profile: collects selected units and writes user doc
-  // Future<void> _saveProfile() async {
-  //   if (!_formKey.currentState!.validate()) return;
-  //
-  //   final theme = Theme.of(context);
-  //   final colorScheme = theme.colorScheme;
-  //
-  //   if (_selectedCampus == null ||
-  //       _selectedCollege == null ||
-  //       _selectedSchool == null ||
-  //       _selectedDept == null ||
-  //       _selectedCourse == null ||
-  //       _selectedYearKey == null ||
-  //       _selectedSemesterKey == null) {
-  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please complete all fields'), backgroundColor: colorScheme.error));
-  //     return;
-  //   }
-  //
-  //   setState(() => _isLoading = true);
-  //
-  //   try {
-  //     final user = FirebaseAuth.instance.currentUser;
-  //     if (user == null) throw Exception('No logged in user');
-  //
-  //     final units = _campusData.getUnits(
-  //       _selectedCampus!,
-  //       _selectedCollege!,
-  //       _selectedSchool!,
-  //       _selectedDept!,
-  //       _selectedCourse!,
-  //       _selectedYearKey!,
-  //       _selectedSemesterKey!,
-  //     );
-  //
-  //     // Save user doc: store course/year/semester as the raw keys (you can map them in client)
-  //     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-  //       'profile_completed': true,
-  //       'campus': _selectedCampus,
-  //       'college': _selectedCollege,
-  //       'school': _selectedSchool,
-  //       'department': _selectedDept,
-  //       'course': _selectedCourse,
-  //       'year_key': _selectedYearKey,
-  //       'semester_key': _selectedSemesterKey,
-  //       'registered_units': units, // list of {code, title, type}
-  //       'updated_at': FieldValue.serverTimestamp(),
-  //     }, SetOptions(merge: true));
-  //
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Profile updated'), backgroundColor: colorScheme.primary));
-  //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
-  //   } catch (e) {
-  //     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: colorScheme.error));
-  //   } finally {
-  //     if (mounted) setState(() => _isLoading = false);
-  //   }
-  // }
 
   // UI helper: present friendly label for yearKey e.g. "year1" -> "Year 1"
   String _displayYear(String key) {
@@ -361,11 +337,11 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final selectedUnits = (_selectedCampus != null && _selectedCollege != null && _selectedSchool != null && _selectedDept != null && _selectedCourse != null && _selectedYearKey != null && _selectedSemesterKey != null)
-        ? _campusData.getUnits(_selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, _selectedYearKey!, _selectedSemesterKey!)
+    final selectedUnits = (_selectedUniversity != null && _selectedCampus != null && _selectedCollege != null && _selectedSchool != null && _selectedDept != null && _selectedCourse != null && _selectedYearKey != null && _selectedSemesterKey != null)
+        ? _universityData.getUnits(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, _selectedYearKey!, _selectedSemesterKey!)
         : [];
 
-    final campuses = _campusData.getCampuses();
+    // final universities = _universityData.getCampuses();
 
     return WillPopScope(
       onWillPop: () async => false,
@@ -412,7 +388,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // Dropdowns
-                                _buildDropdown(label: 'Campus', value: _selectedCampus ?? (campuses.isNotEmpty ? campuses.first : null), items: campuses, onChanged: (v) { _onCampusChanged(v); }, icon: Icons.location_city),
+                                _buildDropdown(label: 'University', value: _selectedUniversity, items: _universities, onChanged: _onUniversityChanged, icon: Icons.school,),
+                                _buildDropdown(label: 'Campus', value: _selectedCampus, items: _campuses, onChanged: _onCampusChanged, icon: Icons.location_city),
                                 _buildDropdown(label: 'College', value: _selectedCollege, items: _colleges, onChanged: _onCollegeChanged, icon: Icons.account_balance),
                                 _buildDropdown(label: 'School', value: _selectedSchool, items: _schools, onChanged: _onSchoolChanged, icon: Icons.business),
                                 _buildDropdown(label: 'Department', value: _selectedDept, items: _departments, onChanged: _onDeptChanged, icon: Icons.category),

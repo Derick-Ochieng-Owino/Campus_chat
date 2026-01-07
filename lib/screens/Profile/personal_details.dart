@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'profile_photo.dart';
 
 class AcademicProfileData {
+  final String university;
   final String campus;
   final String college;
   final String school;
@@ -14,6 +15,7 @@ class AcademicProfileData {
   final List<Map<String, dynamic>> registeredUnits;
 
   AcademicProfileData({
+    required this.university,
     required this.campus,
     required this.college,
     required this.school,
@@ -38,6 +40,7 @@ class _PersonalDetailsPageState extends State<PersonalDetailsPage> {
 
   String? _fullName;
   String? _nickname;
+  String? _phoneNumber;
   String? _regNumber;
   DateTime? _birthDate;
 
@@ -71,6 +74,7 @@ class _PersonalDetailsPageState extends State<PersonalDetailsPage> {
             personalData: PersonalDetailsData(
               fullName: _fullName!,
               regNumber: _regNumber!,
+              phoneNumber: _phoneNumber!,
               birthDate: _birthDate!,
               nickname: _nickname,
             ),
@@ -184,6 +188,14 @@ class _PersonalDetailsPageState extends State<PersonalDetailsPage> {
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\-/]')), // Allow letters, numbers, hyphen, slash
                                 ],
+                              ),
+                              // Phone Number
+                              _buildTextField(
+                                label: 'Phone Number',
+                                icon: Icons.phone,
+                                keyboardType: TextInputType.number,
+                                validator: (v) => (v == null || v.isEmpty) ? 'Phone Number is required' : null,
+                                onSaved: (v) => _phoneNumber = v!.trim(),
                               ),
                               // Nickname (Optional)
                               _buildTextField(

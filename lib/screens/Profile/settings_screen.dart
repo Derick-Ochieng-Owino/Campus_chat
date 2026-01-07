@@ -1,8 +1,9 @@
-import 'package:campus_app/screens/Profile/edit_profile_screen.dart';
-import 'package:campus_app/screens/Profile/themes_setting_screen.dart';
+import 'package:alma_mata/screens/Profile/themes_setting_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

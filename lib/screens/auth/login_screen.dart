@@ -21,7 +21,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  CampusData? campusData;
+  UniversityData? universityData;
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
@@ -43,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadCampusData();
+    _loadUniversityData();
 
     _emailFocusNode.addListener(() {
       if (_emailFocusNode.hasFocus) setState(() => _activeFieldIndex = 0);
@@ -71,12 +71,12 @@ class _LoginPageState extends State<LoginPage> {
     return _activeFieldIndex == 1 ? _passwordFocusNode : _emailFocusNode;
   }
 
-  Future<void> _loadCampusData() async {
+  Future<void> _loadUniversityData() async {
     try {
       final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
-      final data = CampusData.fromJsonString(jsonString);
+      final data = UniversityData.fromJsonString(jsonString);
       setState(() {
-        campusData = data;
+        universityData = data;
       });
     } catch (e) {
       debugPrint('Error loading campus JSON: $e');
@@ -113,13 +113,13 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      if (campusData == null) {
-        throw Exception("Campus data not loaded. Please try again.");
+      if (universityData == null) {
+        throw Exception("University data not loaded. Please try again.");
       }
 
       if (!userDoc.exists) {
         // Document missing? Treat as incomplete profile
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!)));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(universityData: universityData!)));
         return;
       }
 
@@ -143,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
       if (isProfileComplete) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
       } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!)));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CompleteProfilePage(universityData: universityData!)));
       }
 
     } on FirebaseAuthException catch (e) {

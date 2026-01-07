@@ -1,9 +1,9 @@
-import 'package:campus_app/widgets/loading_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // <-- REQUIRED IMPORT
+import '../../widgets/loading_widget.dart';
 import '../Profile/complete_profile.dart';
 import 'login_screen.dart';
 import '../home/home_screen.dart';
@@ -63,12 +63,12 @@ class _SplashScreenState extends State<SplashScreen> {
       final user = FirebaseAuth.instance.currentUser;
 
       // Load campus data first (required for CompleteProfilePage)
-      CampusData campusData;
+      UniversityData universityData;
       try {
         final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
-        campusData = CampusData.fromJsonString(jsonString);
+        universityData = UniversityData.fromJsonString(jsonString);
       } catch (e) {
-        campusData = CampusData(campuses: {});
+        universityData = UniversityData(universities: {});
       }
 
       if (user == null) {
@@ -88,11 +88,11 @@ class _SplashScreenState extends State<SplashScreen> {
         if (isProfileComplete) {
           return const HomePage();
         } else {
-          return CompleteProfilePage(campusData: campusData);
+          return CompleteProfilePage(universityData: universityData);
         }
       } else {
         // User exists in Auth but not Firestore -> Complete Profile
-        return CompleteProfilePage(campusData: campusData);
+        return CompleteProfilePage(universityData: universityData);
       }
     } catch (e) {
       debugPrint("Error in Splash: $e");

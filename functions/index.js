@@ -97,40 +97,40 @@ exports.sendChatNotification = onDocumentCreated(
 
 // ----------------- ANNOUNCEMENT TRIGGER -----------------
 exports.sendAnnouncementNotification = onDocumentCreated(
-  'apps/{appId}/announcements/{announcementId}',
+  'announcements/{announcementId}',
   async (event) => {
     const snap = event.data;
-    const context = event.params;
-
-    const announcement = snap || {};
-    const { announcementId, appId } = context;
+    const announcement = snap.data();
+    const announcementId = event.params.announcementId;
 
     const categoryKey = (announcement.category || announcement.type || 'general').toLowerCase();
+
     const categories = {
       general: '📢 General Announcement',
-      class_confirmation: '🗓️ Class Confirmed/Cancelled',
+      assignment: '📝 New Assignment Posted',
       assignments: '📝 New Assignment Posted',
+      class_confirmation: '🗓️ Class Confirmed/Cancelled',
       cats: '⚠️ CAT/Exam Alert',
       notes: '📄 New Class Notes Released',
     };
 
-    const titlePrefix = categories[categoryKey] || categories['general'];
-    const courseCode = announcement.unit_id || announcement.courseCode || '';
-    const content = announcement.description || announcement.content || '';
-    const body = content.length > 80 ? content.substring(0, 80) + '... Tap to view details.' : content;
+    const titlePrefix = categories[categoryKey] || categories.general;
 
+    const content = announcement.description || announcement.content || '';
+    const body =
+      content.length > 80 ? content.substring(0, 80) + '... Tap to view.' : content;
+
+    // Notification content
     const payloadNotification = {
-      title: `${titlePrefix} ${courseCode}`,
+      title: `${titlePrefix}`,
       body,
-      click_action: 'FLUTTER_NOTIFICATION_CLICK',
     };
 
+    // Data sent with the notification
     const payloadData = {
-      appId,
       screen: 'announcements_detail',
-      category: categoryKey,
       announcementId,
-      unitId: courseCode,
+      category: categoryKey,
     };
 
     return sendNotification('announcement', payloadData, payloadNotification);

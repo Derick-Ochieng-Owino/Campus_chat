@@ -19,9 +19,9 @@ import '../Profile/complete_profile.dart';
 import '../../widgets/loading_widget.dart';
 
 class SampleScreen extends StatefulWidget {
-  final CampusData campusData; // Pass loaded CampusData
+  final UniversityData universityData; // Pass loaded CampusData
 
-  const SampleScreen({super.key, required this.campusData});
+  const SampleScreen({super.key, required this.universityData});
 
   @override
   State<SampleScreen> createState() => _SampleScreenState();

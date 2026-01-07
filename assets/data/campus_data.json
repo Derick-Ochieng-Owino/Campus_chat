@@ -1,463 +1,248 @@
 {
-  "campuses": {
-    "Main": {
-      "colleges": {
-        "COPAS": {
-          "full_name": "College of Pure and Applied Sciences",
-          "schools": {
-            "SCIT": {
-              "full_name": "School of Computing and Information Technology",
-              "departments": {
-                "IT": {
-                  "full_name": "Department of Information Technology",
-                  "courses": {
-                    "BIT": {
-                      "full_name": "Bachelor of Science in Information Technology",
-                      "years": {
-                        "year1": {
-                          "semester1": [
-                            {
-                              "code": "SZL 2111",
-                              "title": "HIV/AIDS",
-                              "type": "CORE"
+  "universities": {
+    "JKUAT": {
+      "full_name": "Jomo Kenyatta University of Agriculture and Technology",
+      "campuses": {
+        "Main": {
+          "colleges": {
+            "COPAS": {
+              "full_name": "College of Pure and Applied Sciences",
+              "schools": {
+                "SCIT": {
+                  "full_name": "School of Computing and Information Technology",
+                  "departments": {
+                    "IT": {
+                      "full_name": "Department of Information Technology",
+                      "courses": {
+                        "BIT": {
+                          "full_name": "Bachelor of Science in Information Technology",
+                          "years": {
+                            "1": {
+                              "1": [
+                                {"code": "SZL 2111", "title": "HIV/AIDS", "type": "CORE"},
+                                {"code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE"},
+                                {"code": "SMA 2104", "title": "Mathematics for Sciences", "type": "CORE"},
+                                {"code": "ICS 2109", "title": "Computer Operating Systems", "type": "CORE"},
+                                {"code": "BIT 2103", "title": "Introduction to Computer Applications", "type": "CORE"},
+                                {"code": "BBC 2104", "title": "Hardware Systems Support and Maintenance", "type": "CORE"},
+                                {"code": "BBC 2105", "title": "Essentials of Economics", "type": "CORE"},
+                                {"code": "BIT 2104", "title": "Introduction to Programming", "type": "CORE"},
+                                {"code": "HBC 2128", "title": "Introduction to Accounting 1", "type": "CORE"}
+                              ],
+                              "2": [
+                                {"code": "BIT 2123", "title": "Computer Network, Design and Management", "type": "CORE"},
+                                {"code": "SDS 2107", "title": "Algebra for Data Science", "type": "CORE"},
+                                {"code": "BIT 2112", "title": "Systems Analysis and Design", "type": "CORE"},
+                                {"code": "ICS 2200", "title": "Analogue Electronics", "type": "CORE"},
+                                {"code": "BIT 2225", "title": "Cloud Computing", "type": "CORE"},
+                                {"code": "HRD 2102", "title": "Development Studies and Social Ethics", "type": "CORE"},
+                                {"code": "BIT 2212", "title": "Business Systems Modelling", "type": "CORE"},
+                                {"code": "SMA 2100", "title": "Discrete Mathematics", "type": "CORE"}
+                              ]
                             },
-                            {
-                              "code": "CILS 2101",
-                              "title": "Communication and Information Literacy Skills",
-                              "type": "CORE"
+                            "2": {
+                              "1": [
+                                {"code": "BIT 2324", "title": "Geographical Information Systems", "type": "CORE"},
+                                {"code": "ICS 2206", "title": "Introduction to Database Management Systems", "type": "CORE"},
+                                {"code": "BIT 2223", "title": "Mobile and Wireless Computing", "type": "CORE"},
+                                {"code": "BIT 2214", "title": "Object-Oriented Analysis and Design", "type": "CORE"},
+                                {"code": "ICS 2104", "title": "Object Oriented Programming I", "type": "CORE"},
+                                {"code": "SMA 2101", "title": "Calculus I", "type": "CORE"},
+                                {"code": "ICS 2203", "title": "Web Application Development I", "type": "CORE"},
+                                {"code": "ICS 2302", "title": "Software Engineering I", "type": "CORE"}
+                              ],
+                              "2": [
+                                {"code": "SMA 2102", "title": "Calculus II", "type": "CORE"},
+                                {"code": "BIT 2207", "title": "Web Design and Development II", "type": "CORE"},
+                                {"code": "BIT 2204", "title": "Network Systems Administration", "type": "CORE"},
+                                {"code": "BIT 2118", "title": "Application Programming I", "type": "CORE"},
+                                {"code": "ICS 2105", "title": "Data Structures and Algorithms", "type": "CORE"
+                                },
+                                {"code": "ICS 2201", "title": "Object Oriented Programming II", "type": "CORE"},
+                                {"code": "ICS 2205", "title": "Digital Logic", "type": "CORE"},
+                                {"code": "STA 2100", "title": "Probability and Statistics I", "type": "CORE"},
+                                {"code": "BIT 2122", "title": "Industrial Attachment", "type": "CORE"}
+                              ]
                             },
-                            {
-                              "code": "SMA 2104",
-                              "title": "Mathematics for Sciences",
-                              "type": "CORE"
+                            "3": {
+                              "1": [
+                                {"code": "BIT 2111", "title": "Computer Aided Design", "type": "CORE"},
+                                {"code": "BIT 2203", "title": "Advanced Programming", "type": "CORE"},
+                                {"code": "BIT 2320", "title": "Mobile Application Development", "type": "CORE"},
+                                {"code": "BIT 2321", "title": "Software Engineering II", "type": "CORE"},
+                                {"code": "BIT 2323", "title": "Application Programming II", "type": "CORE"},
+                                {"code": "ICS 2301", "title": "Design and Analysis of Algorithms", "type": "CORE"},
+                                {"code": "ICS 2404", "title": "Advanced Database Management Systems", "type": "CORE"}
+                              ],
+                              "2": [
+                                {"code": "BIT 2215", "title": "Software Project Management", "type": "CORE"},
+                                {"code": "BIT 2301", "title": "Research Methodology", "type": "CORE"},
+                                {"code": "BIT 2319", "title": "Artificial Intelligence", "type": "CORE"},
+                                {"code": "STA 2200", "title": "Probability and Statistics II", "type": "CORE"},
+                                {"code": "ICS 2305", "title": "Systems Programming", "type": "CORE"},
+                                {"code": "BIT 2326", "title": "Internet of Things (IoT) and Embedded Systems", "type": "CORE"},
+                                {"code": "BIT 2327", "title": "Introduction to Cyber Security", "type": "CORE"},
+                                {"code": "BIT 2328", "title": "Cryptography and Blockchain Applications", "type": "CORE"}
+                              ]
                             },
-                            {
-                              "code": "ICS 2109",
-                              "title": "Computer Operating Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2103",
-                              "title": "Introduction to Computer Applications",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BBC 2104",
-                              "title": "Hardware Systems Support and Maintenance",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BBC 2105",
-                              "title": "Essentials of Economics",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2104",
-                              "title": "Introduction to Programming",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "HBC 2128",
-                              "title": "Introduction to Accounting 1",
-                              "type": "CORE"
+                            "4": {
+                              "1": [
+                                {"code": "BIT 2303", "title": "Research Project", "type": "CORE"},
+                                {"code": "BIT 2305", "title": "Human Computer Interactions", "type": "CORE"},
+                                {"code": "BIT 2400", "title": "Introduction to Functional Programming", "type": "CORE"},
+                                {"code": "ICS 2405", "title": "Knowledge Based Systems", "type": "CORE"},
+                                {"code": "ICS 2403", "title": "Distributed Systems", "type": "CORE"},
+                                {"code": "HSC 2408", "title": "Innovation and Technology Transfer", "type": "CORE"},
+                                {"code": "BIT 2210", "title": "Fundamentals of Business Intelligence", "type": "CORE"},
+                                {"code": "BIT 2317", "title": "Computer Systems Security", "type": "CORE"}
+                              ],
+                              "2": [
+                                {"code": "BIT 2313", "title": "Professional Issues in ICT", "type": "CORE"},
+                                {"code": "BIT 2318", "title": "Information System Audit", "type": "CORE"},
+                                {"code": "BIT 2401", "title": "Advanced Business Intelligence", "type": "CORE"},
+                                {"code": "BIT 2402", "title": "Enterprise Systems Applications and Architecture", "type": "CORE"},
+                                {"code": "ICS 2303", "title": "Multimedia Systems and Applications", "type": "CORE"},
+                                {"code": "HRD 2401", "title": "Entrepreneurship Skills", "type": "CORE"},
+                                {"code": "HBC 2112", "title": "Principles of Marketing", "type": "CORE"}
+                              ]
                             }
-                          ],
-                          "semester2": [
-                            {
-                              "code": "BIT 2123",
-                              "title": "Computer Network, Design and Management",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "SDS 2107",
-                              "title": "Algebra for Data Science",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2112",
-                              "title": "Systems Analysis and Design",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2200",
-                              "title": "Analogue Electronics",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2225",
-                              "title": "Cloud Computing",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "HRD 2102",
-                              "title": "Development Studies and Social Ethics",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2212",
-                              "title": "Business Systems Modelling",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "SMA 2100",
-                              "title": "Discrete Mathematics",
-                              "type": "CORE"
-                            }
-                          ]
-                        },
-                        "year2": {
-                          "semester1": [
-                            {
-                              "code": "BIT 2324",
-                              "title": "Geographical Information Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2206",
-                              "title": "Introduction to Database Management Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2223",
-                              "title": "Mobile and Wireless Computing",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2214",
-                              "title": "Object-Oriented Analysis and Design",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2104",
-                              "title": "Object Oriented Programming I",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "SMA 2101",
-                              "title": "Calculus I",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2203",
-                              "title": "Web Application Development I",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2302",
-                              "title": "Software Engineering I",
-                              "type": "CORE"
-                            }
-                          ],
-                          "semester2": [
-                            {
-                              "code": "SMA 2102",
-                              "title": "Calculus II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2207",
-                              "title": "Web Design and Development II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2204",
-                              "title": "Network Systems Administration",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2118",
-                              "title": "Application Programming I",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2105",
-                              "title": "Data Structures and Algorithms",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2201",
-                              "title": "Object Oriented Programming II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2205",
-                              "title": "Digital Logic",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "STA 2100",
-                              "title": "Probability and Statistics I",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2122",
-                              "title": "Industrial Attachment",
-                              "type": "CORE"
-                            }
-                          ]
-                        },
-                        "year3": {
-                          "semester1": [
-                            {
-                              "code": "BIT 2111",
-                              "title": "Computer Aided Design",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2203",
-                              "title": "Advanced Programming",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2320",
-                              "title": "Mobile Application Development",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2321",
-                              "title": "Software Engineering II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2323",
-                              "title": "Application Programming II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2301",
-                              "title": "Design and Analysis of Algorithms",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2404",
-                              "title": "Advanced Database Management Systems",
-                              "type": "CORE"
-                            }
-                          ],
-                          "semester2": [
-                            {
-                              "code": "BIT 2215",
-                              "title": "Software Project Management",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2301",
-                              "title": "Research Methodology",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2319",
-                              "title": "Artificial Intelligence",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "STA 2200",
-                              "title": "Probability and Statistics II",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2305",
-                              "title": "Systems Programming",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2326",
-                              "title": "Internet of Things (IoT) and Embedded Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2327",
-                              "title": "Introduction to Cyber Security",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2328",
-                              "title": "Cryptography and Blockchain Applications",
-                              "type": "CORE"
-                            }
-                          ]
-                        },
-                        "year4": {
-                          "semester1": [
-                            {
-                              "code": "BIT 2303",
-                              "title": "Research Project",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2305",
-                              "title": "Human Computer Interactions",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2400",
-                              "title": "Introduction to Functional Programming",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2405",
-                              "title": "Knowledge Based Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2403",
-                              "title": "Distributed Systems",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "HSC 2408",
-                              "title": "Innovation and Technology Transfer",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2210",
-                              "title": "Fundamentals of Business Intelligence",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2317",
-                              "title": "Computer Systems Security",
-                              "type": "CORE"
-                            }
-                          ],
-                          "semester2": [
-                            {
-                              "code": "BIT 2313",
-                              "title": "Professional Issues in ICT",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2318",
-                              "title": "Information System Audit",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2401",
-                              "title": "Advanced Business Intelligence",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "BIT 2402",
-                              "title": "Enterprise Systems Applications and Architecture",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "ICS 2303",
-                              "title": "Multimedia Systems and Applications",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "HRD 2401",
-                              "title": "Entrepreneurship Skills",
-                              "type": "CORE"
-                            },
-                            {
-                              "code": "HBC 2112",
-                              "title": "Principles of Marketing",
-                              "type": "CORE"
-                            }
-                          ]
+                          }
                         }
+                      }
+                    },
+                    "CD": {
+                      "full_name": "Computing Department",
+                      "courses": {
                       }
                     }
                   }
                 },
-                "CD": {
-                  "full_name": "Computing Department",
-                  "courses": {
-
-                  }
-                }
-              }
-            },
-            "SPAS": {
-              "full_name": "School Of Physical Sciences",
-              "departments": {
-
-              }
-            },
-            "SMS": {
-              "full_name": "School Of Mathematical Sciences",
-              "departments": {
-                "Botany": {
-                  "courses": {
-                    "Microbiology": {},
-                    "Biotechnology": {},
-                    "Biological Sciences": {}
+                "SPAS": {
+                  "full_name": "School Of Physical Sciences",
+                  "departments": {
                   }
                 },
-                "Zoology": {
-                  "courses": {
-                    "Genomic Sciences": {},
-                    "Applied Biology": {},
-                    "Zoology": {},
-                    "Environmental Sciences": {},
-                    "Fisheries Science": {}
+                "SMS": {
+                  "full_name": "School Of Mathematical Sciences",
+                  "departments": {
+                    "Botany": {
+                      "courses": {
+                        "Microbiology": {},
+                        "Biotechnology": {},
+                        "Biological Sciences": {}
+                      }
+                    },
+                    "Zoology": {
+                      "courses": {
+                        "Genomic Sciences": {},
+                        "Applied Biology": {},
+                        "Zoology": {},
+                        "Environmental Sciences": {},
+                        "Fisheries Science": {}
+                      }
+                    }
+                  }
+                },
+                "SBS": {
+                  "full_name": "School Of Biological Sciences",
+                  "departments": {
                   }
                 }
               }
             },
-            "SBS": {
-              "full_name": "School Of Biological Sciences",
-              "departments": {
-
-              }
-            }
-          }
-        },
-        "COHRED": {
-          "full_name": "College of Human, Resource and Development ",
-          "schools": {
-            "SOBE": {
-              "full_name": "School of Business and Entrepreneurship",
-              "departments": {
-                "DEAF": {
-                  "full_name": "Department of Economics, Accounting and Finance",
-                  "courses": {
-
-                  }
-                }
-              }
-            }
-          }
-        },
-        "COETEC": {
-          "full_name": "College of Engineering and Technology",
-          "schools": {
-            "SOE": {
-              "full_name": "School of Engineering",
-              "departments": {
-                "EEE": {
-                  "full_name": "Department of Electrical & Electronic Engineering",
-                  "courses": {
-                    "BENG_EEE": {
-                      "full_name": "Bachelor of Science in Electrical & Electronic Engineering",
-                      "years": {
-                        "year1": {
-                          "semester1": [
-                            {
-                              "code": "",
-                              "title": "",
-                              "type": "CORE"
+            "COHRED": {
+              "full_name": "College of Human, Resource and Development ",
+              "schools": {
+                "SOBE": {
+                  "full_name": "School of Business and Entrepreneurship",
+                  "departments": {
+                    "DEAF": {
+                      "full_name": "Department of Economics, Accounting and Finance",
+                      "courses": {
+                        "BSc. Economics": {
+                          "years": {
+                            "1": {
+                              "1": [
+                                { "code": "HBE 2101", "title": "Microeconomic Theory I", "type": "CORE" },
+                                { "code": "HBE 2102", "title": "Business Studies", "type": "CORE" },
+                                { "code": "HBC 2106", "title": "Fundamentals of Computer Systems", "type": "CORE" },
+                                { "code": "HBE 2103", "title": "Mathematics for Economists I", "type": "CORE" },
+                                { "code": "HBE 2104", "title": "Statistics for Economists I", "type": "CORE" },
+                                { "code": "SZL 2111", "title": "HIV/AIDS", "type": "CORE" },
+                                { "code": "SMA 2101", "title": "Calculus I", "type": "CORE" },
+                                { "code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE" }
+                              ],
+                              "semester2": [
+                                { "code": "HBE 2105", "title": "Macroeconomic Theory I", "type": "CORE" },
+                                { "code": "HBE 2106", "title": "Statistics for Economists II", "type": "CORE" },
+                                { "code": "HBE 2108", "title": "History of Economic Thought I", "type": "CORE" },
+                                { "code": "HBE 2109", "title": "Management Practice", "type": "CORE" },
+                                { "code": "HBE 2107", "title": "Mathematics for Economists II", "type": "CORE" },
+                                { "code": "SMA 2102", "title": "Calculus II", "type": "CORE" },
+                                { "code": "HRD 2102", "title": "Development Studies and Social Ethics", "type": "CORE" }
+                              ]
                             },
-                            {
-                              "code": "",
-                              "title": "",
-                              "type": "CORE"
-                            }
-                          ],
-                          "semester2": [
-                            {
-                              "code": "",
-                              "title": "",
-                              "type": "CORE"
+                            " 2": {
+                              "1": [
+                                { "code": "HBE 2201", "title": "Introduction to Financial Accounting", "type": "CORE" },
+                                { "code": "HBE 2202", "title": "Microeconomic Theory II", "type": "CORE" },
+                                { "code": "HBE 2203", "title": "Development Economics", "type": "CORE" },
+                                { "code": "HBE 2204", "title": "Statistics for Economists III", "type": "CORE" },
+                                { "code": "HBF 2301", "title": "Financial Institutions and Markets", "type": "CORE" },
+                                { "code": "HBE 2205", "title": "Public Finance and Fiscal Policy", "type": "CORE" },
+                                { "code": "HBE 2206", "title": "History of Economic Thought II", "type": "CORE" }
+                              ],
+                              "semester2": [
+                                { "code": "HBE 2207", "title": "International Economics I", "type": "CORE" },
+                                { "code": "HBE 2208", "title": "Mathematics for Economists III", "type": "CORE" },
+                                { "code": "HBE 2209", "title": "Macroeconomic Theory II", "type": "CORE" },
+                                { "code": "HBE 2210", "title": "Public Economics", "type": "CORE" },
+                                { "code": "HBE 2211", "title": "Welfare Economics", "type": "CORE" },
+                                { "code": "HBE 2212", "title": "Monetary Economics", "type": "CORE" },
+                                { "code": "HBE 2213", "title": "Institutional Economics", "type": "CORE" }
+                              ]
                             },
-                            {
-                              "code": "",
-                              "title": "",
-                              "type": "CORE"
+                            " 3": {
+                              "1": [
+                                { "code": "HBE 2301", "title": "Microeconomic Theory III", "type": "CORE" },
+                                { "code": "HBE 2302", "title": "International Economics II", "type": "CORE" },
+                                { "code": "HBE 2303", "title": "Advanced Statistics for Economists", "type": "CORE" },
+                                { "code": "HBC 2210", "title": "Operations Research", "type": "CORE" },
+                                { "code": "HBE 2304", "title": "Managerial Economics", "type": "CORE" },
+                                { "code": "HBE 2305", "title": "Health Economics I", "type": "CORE" },
+                                { "code": "HBE 2306", "title": "Demographic Economics", "type": "CORE" }
+                              ],
+                              "2": [
+                                { "code": "HBE 2307", "title": "Macroeconomic Theory III", "type": "CORE" },
+                                { "code": "HBE 2308", "title": "Econometrics I", "type": "CORE" },
+                                { "code": "HBC 2304", "title": "Research Methodology", "type": "CORE" },
+                                { "code": "HBE 2309", "title": "Economics of Industry", "type": "CORE" },
+                                { "code": "HBE 2310", "title": "Energy And Environmental Economics", "type": "CORE" },
+                                { "code": "HBE 2311", "title": "Labour Economics", "type": "CORE" },
+                                { "code": "HBE 2312", "title": "Health Economics II", "type": "CORE" }
+                              ]
+                            },
+                            " 4": {
+                              "1": [
+                                { "code": "HBE 2401", "title": "Microeconomic Theory IV", "type": "CORE" },
+                                { "code": "HBE 2402", "title": "Development Planning", "type": "CORE" },
+                                { "code": "HBE 2403", "title": "Project Appraisal", "type": "CORE" },
+                                { "code": "HBE 2404", "title": "Econometrics II", "type": "CORE" },
+                                { "code": "HBE 2405", "title": "Regional Economics", "type": "CORE" },
+                                { "code": "HBE 2406", "title": "Urban Economics", "type": "CORE" },
+                                { "code": "HBE 2407", "title": "Comparative Economic Systems", "type": "CORE" }
+                              ],
+                              "2": [
+                                { "code": "HBE 2408", "title": "Macroeconomic Theory IV", "type": "CORE" },
+                                { "code": "HBE 2409", "title": "Applied Statistics for Economists", "type": "CORE" },
+                                { "code": "HBE 2417", "title": "Economics of Public Enterprises", "type": "CORE" },
+                                { "code": "HBE 2420", "title": "Transport Economics", "type": "CORE" },
+                                { "code": "HBC 2403", "title": "Management Research Project", "type": "CORE" },
+                                { "code": "HRD 2401", "title": "Entrepreneurship Skills", "type": "CORE" },
+                                { "code": "HBE 2313", "title": "Field Attachment", "type": "CORE" }
+                              ]
                             }
-                          ]
+                          }
                         }
                       }
                     }
@@ -465,125 +250,145 @@
                 }
               }
             },
-            "SABS": {
-              "full_name": "School of Architecture and Building Sciences",
-              "departments": {}
+            "COETEC": {
+              "full_name": "College of Engineering and Technology",
+              "schools": {
+                "SABS": {
+                  "full_name": "School of Architecture and Building Sciences",
+                  "departments": {}
+                },
+                "SoBEE": {
+                  "full_name": "School of Biosystems and Environmental Engineering",
+                  "departments": {}
+                },
+                "SCEGE": {
+                  "full_name": "School of Civil, Environmental and Geospatial Engineering",
+                  "departments": {}
+                },
+                "SEEIE": {
+                  "full_name": "School of Electrical, Electronic and Information Engineering",
+                  "departments": {}
+                },
+                "SoMMME": {
+                  "full_name": "School of Mechanical, Manufacturing and Materials Engineering",
+                  "departments": {}
+                }
+              }
             },
-            "SoBEE": {
-              "full_name": "School of Biosystems and Environmental Engineering",
-              "departments": {}
+            "COANRE": {
+              "schools" : {
+                "School of Agriculture and Environmental Sciences" : {},
+                "School of Natural Resources and Animal Science" : {},
+                "School of Food and Nutrition Science" : {}
+              }
             },
-            "SCEGE": {
-              "full_name": "School of Civil, Environmental and Geospatial Engineering",
-              "departments": {}
-            },
-            "SEEIE": {
-              "full_name": "School of Electrical, Electronic and Information Engineering",
-              "departments": {}
-            },
-            "SoMMME": {
-              "full_name": "School of Mechanical, Manufacturing and Materials Engineering",
-              "departments": {}
+            "COHES": {
+              "schools": {
+                "School of Nursing": {},
+                "School of Medicine": {},
+                "School of Pharmacy": {},
+                "School of Public Health": {},
+                "School of Biomedical Sciences": {}
+              }
             }
           }
         },
-        "COANRE": {
-
+        "Karen": {
+          "colleges": {
+            "LAW": {
+              "full_name": "School of Law",
+              "schools": {
+                "School of Law": {
+                }
+              },
+              "departments": {},
+              "courses": {}
+            }
+          }
         },
-        "COHES": {
-          "schools": {
-            "School of Nursing": {},
-            "School of Medicine": {},
-            "School of Pharmacy": {},
-            "School of Public Health": {},
-            "School of Biomedical Sciences": {}
+        "Mombasa": {
+          "colleges": {
+            "CES": {
+              "full_name": "Commerce and Economic Studies Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "CBD": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "Kakamega": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "Kitale": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "Kisii": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "Eldoret": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
+          }
+        },
+        "Nakuru": {
+          "colleges": {
+            "EPD": {
+              "full_name": "Entrepreneurship Procurement Department",
+              "schools": {},
+              "departments": {},
+              "courses": {}
+            }
           }
         }
       }
     },
-    "Karen": {
-      "colleges": {
-        "LAW": {
-          "full_name": "School of Law",
-          "schools": {
-            "School of Law": {
+    "Kenyatta University" : {
+      "full_name" : "Kenyatta University"
+    },
+    "University of Nairobi" : {
+      "full_name" : "University of Nairobi"
+    },
+    "Multimedia University" : {
 
-            }
-          },
-          "departments": {},
-          "courses": {}
-        }
-      }
     },
-    "Mombasa": {
-      "colleges": {
-        "CES": {
-          "full_name": "Commerce and Economic Studies Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "CBD": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "Kakamega": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "Kitale": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "Kisii": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "Eldoret": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
-    },
-    "Nakuru": {
-      "colleges": {
-        "EPD": {
-          "full_name": "Entrepreneurship Procurement Department",
-          "schools": {},
-          "departments": {},
-          "courses": {}
-        }
-      }
+    "Technical Univeristy of Kenya" : {
+
     }
   }
 }

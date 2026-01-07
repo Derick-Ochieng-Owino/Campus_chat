@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:campus_app/screens/Profile/personal_details.dart';
+import 'package:alma_mata/screens/Profile/personal_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +10,14 @@ import 'package:firebase_storage/firebase_storage.dart';
 class PersonalDetailsData {
   final String fullName;
   final String regNumber;
+  final String phoneNumber;
   final DateTime birthDate;
   final String? nickname;
 
   PersonalDetailsData({
     required this.fullName,
     required this.regNumber,
+    required this.phoneNumber,
     required this.birthDate,
     this.nickname,
   });
@@ -66,12 +68,9 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
     if (_imageFile == null) return null;
 
     // --- Placeholder for actual Firebase Storage upload logic ---
-    // final storageRef = FirebaseStorage.instance.ref().child('profile_photos/$uid.jpg');
-    // await storageRef.putFile(_imageFile!);
-    // return await storageRef.getDownloadURL();
-
-    // For this example, we'll return a placeholder URL
-    return 'https://example.com/placeholder_photo/$uid.jpg';
+    final storageRef = FirebaseStorage.instance.ref().child('profile_photos/$uid.jpg');
+    await storageRef.putFile(_imageFile!);
+    return await storageRef.getDownloadURL();
   }
 
   // Final Save profile: writes ALL selected data to user doc
@@ -91,6 +90,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
 
       final profileData = {
         // --- Academic Data ---
+        'university' : academic.university,
         'campus': academic.campus,
         'college': academic.college,
         'school': academic.school,

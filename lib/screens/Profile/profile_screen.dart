@@ -117,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _isLoading
                 ? shimmerBox(width: 180, height: 24)
                 : Text(
-              _userData?['name'] ?? user?.displayName ?? 'Student Name',
+              _userData?['full_name'] ?? user?.displayName ?? 'Student Name',
               style: theme.textTheme.headlineSmall!
                   .copyWith(fontWeight: FontWeight.bold),
             ),
@@ -141,9 +141,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildProfileTile(context, Icons.badge, 'Student ID',
                 _isLoading ? null : _userData?['reg_number'] ?? 'N/A', shimmerBox),
             _buildProfileTile(context, Icons.school, 'Institution',
-                _isLoading ? null : _userData?['institution'] ?? 'JKUAT', shimmerBox),
+                _isLoading ? null : _userData?['university'] ?? 'JKUAT', shimmerBox),
             _buildProfileTile(context, Icons.email, 'Primary Email',
-                _isLoading ? null : _userData?['email'] ?? 'N/A', shimmerBox),
+                _isLoading ? null : _userData?['email'] ?? user?.email ?? 'N/A', shimmerBox),
 
             const SizedBox(height: 30),
 

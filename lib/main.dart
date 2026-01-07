@@ -1,3 +1,4 @@
+import 'package:alma_mata/screens/announcement/fcm_initializer.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
@@ -39,9 +40,12 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NotificationManager()),
       ],
-      child: MyApp(hasCompletedOnboarding: hasCompleted),
+      child: FCMInitializer(
+        child: MyApp(hasCompletedOnboarding: hasCompleted),
+      ),
     ),
   );
+
 }
 
 // ======================================================

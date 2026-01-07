@@ -1,4 +1,3 @@
-// lib/models/notification_data.dart
 import 'package:flutter/material.dart';
 
 enum NotificationType {
@@ -8,7 +7,8 @@ enum NotificationType {
   notesUpdate,
   dm,
   groupChat,
-  general
+  general,
+  pastPaper
 }
 
 class NotificationData {

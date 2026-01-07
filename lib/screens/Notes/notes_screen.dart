@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -15,27 +16,26 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/note_model.dart';
 import '../../models/unit_model.dart';
-import '../Profile/complete_profile.dart';
 import '../../widgets/loading_widget.dart';
 
 class NotesScreen extends StatefulWidget {
-  final CampusData campusData; // Pass loaded CampusData
-
-  const NotesScreen({super.key, required this.campusData});
+  const NotesScreen({super.key});
 
   @override
   State<NotesScreen> createState() => _NotesScreenState();
 }
 
-class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClientMixin<NotesScreen>{
+class _NotesScreenState extends State<NotesScreen>
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
+  late TabController _tabController;
   late Future<List<Unit>> futureUnits;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final Dio _dio = Dio();
-  final Map<String, double> _downloadProgress = {}; // noteId -> 0..1
+  final Map<String, double> _downloadProgress = {}; // materialId -> 0..1
   String? _currentUserRole;
   String? _currentUserName;
   String? _currentUserId;
@@ -54,8 +54,15 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     futureUnits = _loadUnitsOnce();
     _loadUserProfile();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
@@ -146,13 +153,12 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Future<void> _downloadAndOpenNote(Note note) async {
+  Future<void> _downloadAndOpenMaterial(Note note) async {
     try {
       setState(() => _downloadProgress[note.id] = 0.0);
 
       if (kIsWeb) {
-        if (!await launchUrl(Uri.parse(note.url),
-            mode: LaunchMode.externalApplication)) {
+        if (!await launchUrl(Uri.parse(note.url))) {
           throw 'Could not open URL';
         }
       } else {
@@ -183,12 +189,13 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Future<bool> _checkDuplicateNote(String unitId, String title, String format) async {
+  Future<bool> _checkDuplicateMaterial(
+      String unitId, String title, String format, String collectionName) async {
     try {
       final querySnapshot = await _firestore
           .collection('units')
           .doc(unitId)
-          .collection('notes')
+          .collection(collectionName)
           .where('title', isEqualTo: title.trim())
           .where('format', isEqualTo: format.toUpperCase())
           .get();
@@ -200,10 +207,11 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Future<void> _uploadNoteToUnit(Unit unit) async {
+  Future<void> _uploadMaterialToUnit(
+      Unit unit, String collectionName, String announcementType) async {
     final user = _auth.currentUser;
     if (user == null || !_canUpload()) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Upload permission denied')));
       return;
     }
@@ -211,16 +219,35 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     final res = await FilePicker.platform.pickFiles(allowMultiple: false);
     if (res == null || res.files.isEmpty) return;
 
-    final file = kIsWeb ? res.files.single : File(res.files.single.path!);
-    final originalName = res.files.single.name;
-    final ext = originalName.contains('.') ? originalName.split('.').last : '';
-    final titleController =
-    TextEditingController(text: originalName.replaceAll(RegExp(r'\..*$'), ''));
+    final platformFile = res.files.single;
+    Uint8List? fileBytes;
+    File? file;
+
+    if (kIsWeb) {
+      fileBytes = platformFile.bytes;
+    } else {
+      if (platformFile.path != null) {
+        file = File(platformFile.path!);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not access file')),
+          );
+        }
+        return;
+      }
+    }
+
+    final originalName = platformFile.name;
+    final ext =
+    originalName.contains('.') ? originalName.split('.').last : '';
+    final titleController = TextEditingController(
+        text: originalName.replaceAll(RegExp(r'\..*$'), ''));
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Upload'),
+        title: Text('Upload $announcementType'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -230,7 +257,7 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
             TextField(
               controller: titleController,
               decoration: const InputDecoration(
-                labelText: 'Note Title',
+                labelText: 'Title',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -249,17 +276,15 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
 
     if (confirmed != true || titleController.text.trim().isEmpty) return;
 
-    // Check for duplicate note
-    final isDuplicate = await _checkDuplicateNote(
-        unit.id,
-        titleController.text.trim(),
-        ext.toUpperCase()
-    );
+    // Check for duplicate material
+    final isDuplicate = await _checkDuplicateMaterial(
+        unit.id, titleController.text.trim(), ext.toUpperCase(), collectionName);
 
     if (isDuplicate && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Note "${titleController.text.trim()}" already exists in ${unit.name}'),
+          content: Text(
+              '$announcementType "${titleController.text.trim()}" already exists in ${unit.name}'),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 3),
         ),
@@ -269,23 +294,22 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
 
     try {
       final uploaderName = _currentUserName ?? user.displayName ?? 'Uploader';
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('notes/${unit.id}/${DateTime.now().millisecondsSinceEpoch}_$originalName');
+      final storageRef = FirebaseStorage.instance.ref().child(
+          '$collectionName/${unit.id}/${DateTime.now().millisecondsSinceEpoch}_$originalName');
 
       final uploadTask = kIsWeb
-          ? storageRef.putData(res.files.single.bytes!)
-          : storageRef.putFile(file as File);
+          ? storageRef.putData(fileBytes!)
+          : storageRef.putFile(file!);
 
       await uploadTask;
       final downloadUrl = await storageRef.getDownloadURL();
 
-      final noteDoc = _firestore
+      final materialDoc = _firestore
           .collection('units')
           .doc(unit.id)
-          .collection('notes')
+          .collection(collectionName)
           .doc();
-      await noteDoc.set({
+      await materialDoc.set({
         'title': titleController.text.trim(),
         'url': downloadUrl,
         'uploaderId': user.uid,
@@ -294,7 +318,7 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Create new announcement for the uploaded note
+      // Create new announcement for the uploaded material
       final announcementDoc = _firestore.collection('announcements').doc();
       await announcementDoc.set({
         'attachment_name': titleController.text.trim(),
@@ -302,18 +326,20 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
         'author_id': user.uid,
         'author_name': uploaderName,
         'created_at': FieldValue.serverTimestamp(),
-        'description': 'New study material uploaded for ${unit.name}',
-        'title': 'New Note: ${titleController.text.trim()}',
-        'type': 'Notes',
+        'description': 'New $announcementType uploaded for ${unit.name}',
+        'title': 'New $announcementType: ${titleController.text.trim()}',
+        'type': announcementType,
         'unit_id': unit.id,
         'unit_name': unit.name,
         'format': ext.toUpperCase(),
-        'target_date': Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
-        'expires_at': Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
+        'target_date': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 30))),
+        'expires_at':
+        Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
       });
 
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note uploaded successfully!')),
+        SnackBar(content: Text('$announcementType uploaded successfully!')),
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -322,12 +348,14 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Future<void> _deleteNote(Note note, String unitId) async {
+  Future<void> _deleteMaterial(
+      Note note, String unitId, String collectionName) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Note'),
-        content: Text('Are you sure you want to delete "${note.title}"? This action cannot be undone.'),
+        title: const Text('Delete'),
+        content:
+        Text('Are you sure you want to delete "${note.title}"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -349,7 +377,7 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
       await _firestore
           .collection('units')
           .doc(unitId)
-          .collection('notes')
+          .collection(collectionName)
           .doc(note.id)
           .delete();
 
@@ -358,7 +386,7 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
       await ref.delete();
 
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Note "${note.title}" deleted successfully')),
+        SnackBar(content: Text('"${note.title}" deleted successfully')),
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -367,12 +395,98 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Widget _buildUnitTile(Unit unit) {
+  Widget _buildMaterialListItem(Note note,
+      {required bool isAdmin,
+        required VoidCallback onDelete,
+        required String collectionName}) {
     final theme = Theme.of(context);
-    final notesStream = _firestore
+    final progress = _downloadProgress[note.id];
+    final format = note.format.toUpperCase();
+    final colors =
+        formatColors[format] ?? [Colors.grey.shade100, Colors.black87];
+    final icon = _getIconForFormat(format);
+    final accentBgColor = theme.brightness == Brightness.dark
+        ? colors[1].withOpacity(0.15)
+        : colors[0];
+    final accentIconColor =
+    theme.brightness == Brightness.dark ? colors[1] : colors[1];
+
+    return InkWell(
+      onTap: () => _downloadAndOpenMaterial(note),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: theme.dividerColor)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentBgColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: accentIconColor, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(note.title,
+                      style: theme.textTheme.bodyMedium!
+                          .copyWith(fontWeight: FontWeight.w600, fontSize: 15),
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text('${format} | By ${note.uploaderName}',
+                      style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+            if (isAdmin) ...[
+              IconButton(
+                icon: Icon(Icons.delete_rounded, color: Colors.red.shade400),
+                onPressed: () => onDelete(),
+                tooltip: 'Delete',
+              ),
+              const SizedBox(width: 8),
+            ],
+            SizedBox(
+              width: isAdmin ? 60 : 100,
+              child: progress != null
+                  ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  LinearProgressIndicator(
+                    value: progress,
+                    color: theme.colorScheme.secondary,
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${(progress * 100).toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall!
+                          .copyWith(fontSize: 10)),
+                ],
+              )
+                  : IconButton(
+                icon: Icon(Icons.download_rounded,
+                    color: theme.colorScheme.secondary),
+                onPressed: () => _downloadAndOpenMaterial(note),
+                tooltip: 'Download',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnitTile(
+      Unit unit, String collectionName, String announcementType) {
+    final theme = Theme.of(context);
+    final materialsStream = _firestore
         .collection('units')
         .doc(unit.id)
-        .collection('notes')
+        .collection(collectionName)
         .orderBy('createdAt', descending: true)
         .snapshots();
 
@@ -410,14 +524,24 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
               '${unit.id} | Year ${unit.year} • Sem ${unit.semester}',
               style: theme.textTheme.bodySmall),
           children: [
-            _NotesCacheStreamManager(
-              notesStream: notesStream,
+            _MaterialsCacheStreamManager(
+              materialsStream: materialsStream,
               unitId: unit.id,
-              buildNoteListItem: _buildNoteListItem,
+              buildMaterialListItem: (note, isAdmin, onDelete) =>
+                  _buildMaterialListItem(note,
+                      isAdmin: isAdmin,
+                      onDelete: onDelete,
+                      collectionName: collectionName),
               canUpload: _canUpload(),
-              onUpload: () => _uploadNoteToUnit(unit),
+              onUpload: () => _uploadMaterialToUnit(
+                  unit, collectionName, announcementType),
               isAdmin: _isAdmin(),
-              onDeleteNote: (note) => _deleteNote(note, unit.id),
+              onDeleteMaterial: (note) =>
+                  _deleteMaterial(note, unit.id, collectionName),
+              collectionName: collectionName,
+              emptyStateMessage: collectionName == 'notes'
+                  ? 'No notes uploaded yet.'
+                  : 'No past papers uploaded yet.',
             ),
           ],
         ),
@@ -425,82 +549,37 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildNoteListItem(Note note, {required bool isAdmin, required VoidCallback onDelete}) {
+  Widget _buildTabContent(
+      String collectionName, String announcementType, String emptyStateTitle) {
     final theme = Theme.of(context);
-    final progress = _downloadProgress[note.id];
-    final format = note.format.toUpperCase();
-    final colors = formatColors[format] ?? [Colors.grey.shade100, Colors.black87];
-    final icon = _getIconForFormat(format);
-    final accentBgColor =
-    theme.brightness == Brightness.dark ? colors[1].withOpacity(0.15) : colors[0];
-    final accentIconColor = theme.brightness == Brightness.dark ? colors[1] : colors[1];
 
-    return InkWell(
-      onTap: () => _downloadAndOpenNote(note),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: theme.dividerColor)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: accentBgColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: accentIconColor, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(note.title,
-                      style: theme.textTheme.bodyMedium!
-                          .copyWith(fontWeight: FontWeight.w600, fontSize: 15),
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Text('${format} | By ${note.uploaderName}',
-                      style: theme.textTheme.bodySmall),
-                ],
+    return FutureBuilder<List<Unit>>(
+      future: futureUnits,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: AppLogoLoadingWidget());
+        }
+        final units = snap.data ?? [];
+        if (units.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Text(
+                emptyStateTitle,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium!.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7)),
               ),
             ),
-            if (isAdmin) ...[
-              IconButton(
-                icon: Icon(Icons.delete_rounded, color: Colors.red.shade400),
-                onPressed: () => onDelete(),
-                tooltip: 'Delete Note',
-              ),
-              const SizedBox(width: 8),
-            ],
-            SizedBox(
-              width: isAdmin ? 60 : 100,
-              child: progress != null
-                  ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  LinearProgressIndicator(
-                    value: progress,
-                    color: theme.colorScheme.secondary,
-                  ),
-                  const SizedBox(height: 4),
-                  Text('${(progress * 100).toStringAsFixed(0)}%',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(fontSize: 10)),
-                ],
-              )
-                  : IconButton(
-                icon: Icon(Icons.download_rounded,
-                    color: theme.colorScheme.secondary),
-                onPressed: () => _downloadAndOpenNote(note),
-                tooltip: 'Download',
-              ),
-            ),
-          ],
-        ),
-      ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 12, top: 8),
+          itemCount: units.length,
+          itemBuilder: (context, index) => _buildUnitTile(
+              units[index], collectionName, announcementType),
+        );
+      },
     );
   }
 
@@ -511,18 +590,34 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Course Notes & Units', style: theme.appBarTheme.titleTextStyle),
+        title: Text('Study Materials', style: theme.appBarTheme.titleTextStyle),
         backgroundColor: theme.colorScheme.surface,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: theme.appBarTheme.elevation,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: theme.colorScheme.secondary,
+          labelColor: theme.colorScheme.secondary,
+          unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+          tabs: const [
+            Tab(
+              icon: Icon(Icons.note_rounded),
+              text: 'Course Notes',
+            ),
+            Tab(
+              icon: Icon(Icons.description_rounded),
+              text: 'Past Papers',
+            ),
+          ],
+        ),
         actions: [
           if (_canUpload())
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Chip(
-                avatar: Icon(Icons.security,
+                avatar: Icon(Icons.upload_rounded,
                     color: theme.colorScheme.secondary, size: 18),
-                label: Text('Uploader Role', style: theme.textTheme.bodySmall),
+                label: Text('Uploader', style: theme.textTheme.bodySmall),
                 backgroundColor: theme.colorScheme.secondaryContainer,
               ),
             ),
@@ -549,64 +644,61 @@ class _NotesScreenState extends State<NotesScreen> with AutomaticKeepAliveClient
           ),
         ],
       ),
-      body: FutureBuilder<List<Unit>>(
-        future: futureUnits,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: AppLogoLoadingWidget(size: 80));
-          }
-          final units = snap.data ?? [];
-          if (units.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Text(
-                  'No units found for your profile.\nCheck profile or contact admin.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium!
-                      .copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                ),
-              ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 12, top: 8),
-            itemCount: units.length,
-            itemBuilder: (context, index) => _buildUnitTile(units[index]),
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Notes Tab
+          _buildTabContent(
+            'notes',
+            'Notes',
+            'No units found for your profile.\nCheck profile or contact admin.',
+          ),
+          // Past Papers Tab
+          _buildTabContent(
+            'papers',
+            'Past Papers',
+            'No units found for your profile.\nCheck profile or contact admin.',
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Stream & Cache manager for notes per unit
-class _NotesCacheStreamManager extends StatefulWidget {
-  final Stream<QuerySnapshot> notesStream;
+/// Stream & Cache manager for materials per unit
+class _MaterialsCacheStreamManager extends StatefulWidget {
+  final Stream<QuerySnapshot> materialsStream;
   final String unitId;
-  final Widget Function(Note note, {required bool isAdmin, required VoidCallback onDelete}) buildNoteListItem;
+  final Widget Function(Note note, bool isAdmin, VoidCallback onDelete)
+  buildMaterialListItem;
   final bool canUpload;
   final VoidCallback onUpload;
   final bool isAdmin;
-  final Function(Note note) onDeleteNote;
+  final Function(Note note) onDeleteMaterial;
+  final String collectionName;
+  final String emptyStateMessage;
 
-  const _NotesCacheStreamManager({
-    required this.notesStream,
+  const _MaterialsCacheStreamManager({
+    required this.materialsStream,
     required this.unitId,
-    required this.buildNoteListItem,
+    required this.buildMaterialListItem,
     required this.canUpload,
     required this.onUpload,
     required this.isAdmin,
-    required this.onDeleteNote,
+    required this.onDeleteMaterial,
+    required this.collectionName,
+    required this.emptyStateMessage,
   });
 
   @override
-  State<_NotesCacheStreamManager> createState() => __NotesCacheStreamManagerState();
+  State<_MaterialsCacheStreamManager> createState() =>
+      __MaterialsCacheStreamManagerState();
 }
 
-class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
-  List<Note>? _cachedNotes;
-  static const String _cacheNotesPrefix = 'cachedNotes_';
+class __MaterialsCacheStreamManagerState
+    extends State<_MaterialsCacheStreamManager> {
+  List<Note>? _cachedMaterials;
+  static const String _cacheMaterialsPrefix = 'cachedMaterials_';
 
   @override
   void initState() {
@@ -616,25 +708,27 @@ class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
 
   Future<void> _loadCache() async {
     final prefs = await SharedPreferences.getInstance();
-    final cachedData = prefs.getString(_cacheNotesPrefix + widget.unitId);
+    final cacheKey = '${_cacheMaterialsPrefix}${widget.collectionName}_${widget.unitId}';
+    final cachedData = prefs.getString(cacheKey);
 
     if (cachedData != null && mounted) {
       try {
         final List<dynamic> list = jsonDecode(cachedData);
         setState(() {
-          _cachedNotes = list.map((e) => Note.fromJson(e)).toList();
+          _cachedMaterials = list.map((e) => Note.fromJson(e)).toList();
         });
       } catch (e) {
-        debugPrint('Error decoding notes cache: $e');
-        _cachedNotes = null;
+        debugPrint('Error decoding materials cache: $e');
+        _cachedMaterials = null;
       }
     }
   }
 
-  Future<void> _saveCache(List<Note> notes) async {
+  Future<void> _saveCache(List<Note> materials) async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = jsonEncode(notes.map((n) => n.toMap()).toList());
-    await prefs.setString(_cacheNotesPrefix + widget.unitId, jsonString);
+    final cacheKey = '${_cacheMaterialsPrefix}${widget.collectionName}_${widget.unitId}';
+    final jsonString = jsonEncode(materials.map((n) => n.toMap()).toList());
+    await prefs.setString(cacheKey, jsonString);
   }
 
   @override
@@ -644,11 +738,11 @@ class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
     return Column(
       children: [
         StreamBuilder<QuerySnapshot>(
-          stream: widget.notesStream,
+          stream: widget.materialsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              if (_cachedNotes != null) return _buildNoteList(_cachedNotes!);
-              return buildNoteShimmer(context, count: 4);
+              if (_cachedMaterials != null) return _buildMaterialList(_cachedMaterials!);
+              return buildMaterialShimmer(context, count: 4);
             }
 
             final docs = snapshot.data?.docs ?? [];
@@ -656,15 +750,15 @@ class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
               _saveCache([]);
               return Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text('No notes uploaded yet.',
-                    style: theme.textTheme.bodyMedium!.copyWith(
-                        fontStyle: FontStyle.italic)),
+                child: Text(widget.emptyStateMessage,
+                    style: theme.textTheme.bodyMedium!
+                        .copyWith(fontStyle: FontStyle.italic)),
               );
             }
 
-            final liveNotes = docs.map((d) => Note.fromFirestore(d)).toList();
-            _saveCache(liveNotes);
-            return _buildNoteList(liveNotes);
+            final liveMaterials = docs.map((d) => Note.fromFirestore(d)).toList();
+            _saveCache(liveMaterials);
+            return _buildMaterialList(liveMaterials);
           },
         ),
         if (widget.canUpload)
@@ -673,24 +767,28 @@ class __NotesCacheStreamManagerState extends State<_NotesCacheStreamManager> {
             child: ElevatedButton.icon(
               onPressed: widget.onUpload,
               icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Upload Note'),
+              label: Text(widget.collectionName == 'notes'
+                  ? 'Upload Note'
+                  : 'Upload Past Paper'),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildNoteList(List<Note> notes) {
+  Widget _buildMaterialList(List<Note> materials) {
     return Column(
-      children: notes.map((note) => widget.buildNoteListItem(
-        note,
-        isAdmin: widget.isAdmin,
-        onDelete: () => widget.onDeleteNote(note),
-      )).toList(),
+      children: materials
+          .map((material) => widget.buildMaterialListItem(
+        material,
+        widget.isAdmin,
+            () => widget.onDeleteMaterial(material),
+      ))
+          .toList(),
     );
   }
 
-  Widget buildNoteShimmer(BuildContext context, {int count = 3}) {
+  Widget buildMaterialShimmer(BuildContext context, {int count = 3}) {
     return Column(
       children: List.generate(
         count,

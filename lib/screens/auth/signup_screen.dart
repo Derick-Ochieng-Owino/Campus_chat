@@ -15,7 +15,7 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  CampusData? campusData;
+  UniversityData? universityData;
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
@@ -48,9 +48,9 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<void> _loadCampusData() async {
     try {
       final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
-      final data = CampusData.fromJsonString(jsonString);
+      final data = UniversityData.fromJsonString(jsonString);
       setState(() {
-        campusData = data;
+        universityData = data;
       });
     } catch (e) {
       debugPrint('Error loading campus JSON: $e');
@@ -108,7 +108,7 @@ class _SignUpPageState extends State<SignUpPage> {
         // Navigate to complete profile
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => CompleteProfilePage(campusData: campusData!)),
+          MaterialPageRoute(builder: (_) => CompleteProfilePage(universityData: universityData!)),
         );
       }
 

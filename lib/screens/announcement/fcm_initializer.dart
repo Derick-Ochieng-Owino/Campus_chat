@@ -116,7 +116,7 @@ class _FCMInitializerState extends State<FCMInitializer> {
             sound: const RawResourceAndroidNotificationSound('notification_sound'),
           ),
           iOS: const DarwinNotificationDetails(
-            sound: 'notification_sound.mp3', // Match iOS bundled sound file name
+            sound: 'notification_sound.wav', // Match iOS bundled sound file name
           ),
         ),
       );

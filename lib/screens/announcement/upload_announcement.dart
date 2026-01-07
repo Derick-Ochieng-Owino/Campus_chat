@@ -6,9 +6,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-// Import AppColors is no longer strictly necessary, but we'll use theme
-// import '../../core/constants/colors.dart';
-
 class CreateAnnouncementScreen extends StatefulWidget {
   const CreateAnnouncementScreen({super.key});
 
