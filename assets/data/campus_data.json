@@ -172,7 +172,7 @@
                                 { "code": "SMA 2101", "title": "Calculus I", "type": "CORE" },
                                 { "code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE" }
                               ],
-                              "semester2": [
+                              "2": [
                                 { "code": "HBE 2105", "title": "Macroeconomic Theory I", "type": "CORE" },
                                 { "code": "HBE 2106", "title": "Statistics for Economists II", "type": "CORE" },
                                 { "code": "HBE 2108", "title": "History of Economic Thought I", "type": "CORE" },
@@ -192,7 +192,7 @@
                                 { "code": "HBE 2205", "title": "Public Finance and Fiscal Policy", "type": "CORE" },
                                 { "code": "HBE 2206", "title": "History of Economic Thought II", "type": "CORE" }
                               ],
-                              "semester2": [
+                              "2": [
                                 { "code": "HBE 2207", "title": "International Economics I", "type": "CORE" },
                                 { "code": "HBE 2208", "title": "Mathematics for Economists III", "type": "CORE" },
                                 { "code": "HBE 2209", "title": "Macroeconomic Theory II", "type": "CORE" },

@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../../widgets/loading_widget.dart';
 import '../chat/user_selection_screen.dart';
 import 'chat_screen.dart';
@@ -25,6 +29,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _imagePicker = ImagePicker();
+  final Uuid _uuid = Uuid();
 
   String? _currentUserId;
   String? _currentUserRole;
@@ -49,11 +56,15 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
   // Timer for status refresh
   Timer? _statusRefreshTimer;
 
+  // Image picking state
+  XFile? _selectedImage;
+  bool _isUploadingImage = false;
+  String? _mediaUrl;
+
   @override
   void initState() {
     super.initState();
     _loadUserProfileAndCache();
-    //_setupStatusRefreshTimer();
   }
 
   @override
@@ -71,7 +82,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     });
   }
 
-  // Add this method to see what's happening
   void _debugStatusInfo(AsyncSnapshot<QuerySnapshot> statusSnap) {
     debugPrint('=== STATUS DEBUG INFO ===');
     debugPrint('Connection state: ${statusSnap.connectionState}');
@@ -88,9 +98,74 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         debugPrint('  - expiresAt: ${data['expiresAt']}');
         debugPrint('  - reachLimit: ${data['reachLimit']}');
         debugPrint('  - type: ${data['type']}');
+        debugPrint('  - mediaUrl: ${data['mediaUrl']}');
       }
     }
     debugPrint('=== END DEBUG INFO ===');
+  }
+
+  void _createTestStatusManually() async {
+    try {
+      debugPrint('=== CREATING TEST STATUS MANUALLY ===');
+
+      final expiresAt = DateTime.now().add(const Duration(hours: 24));
+      debugPrint('Expires at: $expiresAt');
+
+      final docRef = await _firestore.collection('statuses').add({
+        'content': 'TEST STATUS - This is a test ad',
+        'createdBy': _currentUserId,
+        'createdByName': _currentUserName ?? 'Test Admin',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(expiresAt),
+        'reachLimit': 300,
+        'type': 'ad',
+        'mediaUrl': null,
+      });
+
+      debugPrint('Test status created with ID: ${docRef.id}');
+      debugPrint('=== TEST STATUS CREATED ===');
+
+      // Refresh the stream
+      _setupStatusStream();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test status created: ${docRef.id}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+    } catch (e) {
+      debugPrint('Error creating test status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _checkFirestoreAccess() async {
+    try {
+      debugPrint('=== CHECKING FIRESTORE ACCESS ===');
+
+      // Try to read statuses
+      final snapshot = await _firestore.collection('statuses').limit(1).get();
+      debugPrint('Can read statuses: ${snapshot.docs.length} documents found');
+
+      // Try to read users
+      final userSnapshot = await _firestore.collection('users').doc(_currentUserId).get();
+      debugPrint('Can read user document: ${userSnapshot.exists}');
+      if (userSnapshot.exists) {
+        debugPrint('User role: ${userSnapshot.data()?['role']}');
+      }
+
+      debugPrint('=== FIRESTORE ACCESS CHECK COMPLETE ===');
+
+    } catch (e) {
+      debugPrint('Firestore access error: $e');
+    }
   }
 
   // --- CACHING & DATA LOADING ---
@@ -142,13 +217,13 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         }
       }
 
-      // 3. Setup General Chat, Load Groups, and Initialize Live Stream
+      // 3. Setup General Course Chat, Load Groups, and Initialize Live Stream
       await _ensureGeneralCourseChat(userData);
       await _loadUserSpecificGroups(userData['groupId'] as String?, userData['subdivision'] as String?);
 
       // 4. Setup streams
-      _setupStream(); // For chats
-      _setupStatusStream(); // For statuses
+      _setupStream();
+      _setupStatusStream();
 
       // 5. Setup timer
       _setupStatusRefreshTimer();
@@ -161,7 +236,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     }
   }
 
-  // FIXED: Renamed from _setupChatStream to _setupStream
   void _setupStream() {
     final isAdmin = _currentUserRole == 'admin';
     Query query = _firestore.collection('chats');
@@ -174,7 +248,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
 
     setState(() {
       _chatStream = query.snapshots().map((snapshot) {
-        // Asynchronously save the fresh data to cache
         _saveCache(snapshot.docs);
         return snapshot;
       });
@@ -191,12 +264,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
 
     try {
       final now = DateTime.now();
-      final tomorrow = now.add(const Duration(days: 1));
 
       debugPrint('Current time: $now');
       debugPrint('Looking for statuses expiring after: $now');
 
-      // Simple query to get all active statuses
       Query query = _firestore
           .collection('statuses')
           .where('expiresAt', isGreaterThan: Timestamp.fromDate(now))
@@ -213,9 +284,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
       // Test the query
       query.get().then((snapshot) {
         debugPrint('Test query found ${snapshot.docs.length} statuses');
-        for (var doc in snapshot.docs) {
-          // debugPrint('- ${doc.id}: ${doc.data()['content']}');
-        }
       }).catchError((error) {
         debugPrint('Test query error: $error');
       });
@@ -247,7 +315,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
   }
 
   Future<void> _incrementStatusView(String statusId, String userId) async {
-    // Check if user already viewed this status
     if (_statusViewedByUser.containsKey('${statusId}_$userId')) {
       return;
     }
@@ -255,39 +322,31 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     final statusRef = _firestore.collection('statuses').doc(statusId);
     final viewersRef = statusRef.collection('viewers');
 
-    // Create a transaction to safely increment count
     await _firestore.runTransaction((transaction) async {
-      // Get current count
       final countDoc = await transaction.get(viewersRef.doc('count'));
       final currentCount = countDoc.data()?['count'] as int? ?? 0;
 
-      // Update count
       transaction.set(
         viewersRef.doc('count'),
         {'count': currentCount + 1},
         SetOptions(merge: true),
       );
 
-      // Add user to viewers list
       transaction.set(
         viewersRef.doc(userId),
         {'viewedAt': FieldValue.serverTimestamp()},
       );
     });
 
-    // Update cache
     _statusViewedByUser['${statusId}_$userId'] = true;
     await _saveStatusViewsCache();
 
-    // Update local count
     final currentCount = _statusViewCounts[statusId] ?? 0;
     _statusViewCounts[statusId] = currentCount + 1;
   }
 
   Future<void> _checkStatusAvailability() async {
     if (_statusStream == null) return;
-
-    // This will trigger the stream to re-evaluate reach limits
     _setupStatusStream();
   }
 
@@ -297,7 +356,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     final serializableList = docs.map((doc) {
       final dataMap = doc.data() as Map<String, dynamic>? ?? {};
 
-      // Convert all Timestamp fields to ISO strings
       final cleanedMap = dataMap.map((key, value) {
         if (value is Timestamp) {
           return MapEntry(key, value.toDate().toIso8601String());
@@ -311,8 +369,82 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     await prefs.setString(_CACHE_KEY, jsonEncode(serializableList));
   }
 
-  // --- GROUP LOGIC (Unchanged for functional logic) ---
+  // --- IMAGE PICKING AND UPLOAD ---
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
 
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = pickedFile;
+          _mediaUrl = null; // Clear any existing URL when new image is selected
+        });
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadImageToFirebase(File imageFile) async {
+    try {
+      setState(() {
+        _isUploadingImage = true;
+      });
+
+      final fileName = 'status_images/${_uuid.v4()}.jpg';
+      final Reference storageRef = _storage.ref().child(fileName);
+
+      final UploadTask uploadTask = storageRef.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final TaskSnapshot snapshot = await uploadTask.whenComplete(() => null);
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      setState(() {
+        _isUploadingImage = false;
+      });
+
+      return downloadUrl;
+    } catch (e) {
+      debugPrint("Error uploading image: $e");
+      setState(() {
+        _isUploadingImage = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<void> _removeSelectedImage() async {
+    setState(() {
+      _selectedImage = null;
+      _mediaUrl = null;
+    });
+  }
+
+  // --- GROUP LOGIC ---
   Future<void> _ensureGeneralCourseChat(Map<String, dynamic> user) async {
     final course = user['course'] ?? 'default';
     final year = user['year_key'] ?? 'year1';
@@ -361,7 +493,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         if (doc.exists) {
           final name = (doc.data()?['nickname'] ?? doc.data()?['name'] ?? uid) as String;
           _userNameCache[uid] = name;
-          if (mounted) setState(() {}); // rebuild once the name is fetched
+          if (mounted) setState(() {});
         }
       });
     }
@@ -385,8 +517,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         return;
       }
 
-      // --- SAFE EXTRACTION OF UIDs ---
-      // Safely get list A or an empty list, then extract UIDs and cast.
       final List<Map<String, dynamic>> membersA =
           (groupData['A'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
@@ -396,40 +526,35 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
       final List<String> uidsA = membersA.map((m) => m['uid'] as String).toList();
       final List<String> uidsB = membersB.map((m) => m['uid'] as String).toList();
 
-      // 🎯 FIX: Use the null-aware spread operator on the list itself.
       final List<String> allGroupUids = [
         ...uidsA,
         ...uidsB,
       ];
-      // -------------------------------
 
-      // 1. Group General Chat
       chats.add({
         'name': '$groupName (General)',
         'type': 'group',
         'chatId': '${groupId}_general',
-        'participants': allGroupUids, // Already a List<String>
+        'participants': allGroupUids,
       });
 
-      // 2. Subdivision A Chat (if user is in A or is admin)
       if (subdivision == 'A' || _currentUserRole == 'admin') {
         chats.add({
           'name': '$groupName (A)',
           'type': 'group',
           'chatId': '${groupId}_A',
           'subdivision': 'A',
-          'participants': uidsA, // Use the extracted List<String>
+          'participants': uidsA,
         });
       }
 
-      // 3. Subdivision B Chat (if user is in B or is admin)
       if (subdivision == 'B' || _currentUserRole == 'admin') {
         chats.add({
           'name': '$groupName (B)',
           'type': 'group',
           'chatId': '${groupId}_B',
           'subdivision': 'B',
-          'participants': uidsB, // Use the extracted List<String>
+          'participants': uidsB,
         });
       }
 
@@ -444,7 +569,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
   }
 
   // --- STATUS/STORY FUNCTIONS ---
-
   void _viewStatus(BuildContext context, Map<String, dynamic> status) async {
     final statusId = status['id'];
     final content = status['content'] ?? '';
@@ -452,7 +576,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     final reachLimit = status['reachLimit'] as int?;
     final currentViews = _statusViewCounts[statusId] ?? 0;
 
-    // Check if reached limit
     if (reachLimit != null && currentViews >= reachLimit) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -465,10 +588,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
       return;
     }
 
-    // Show status viewer
     showDialog(
       context: context,
-      builder: (context) => _StatusViewerDialog( // FIXED: Changed from StatusViewerDialog to _StatusViewerDialog
+      builder: (context) => _StatusViewerDialog(
         status: status,
         mediaUrl: mediaUrl,
         content: content,
@@ -476,7 +598,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         viewCount: currentViews,
         reachLimit: reachLimit,
         onViewComplete: () async {
-          // Mark as viewed and increment count
           if (_currentUserId != null) {
             await _incrementStatusView(statusId, _currentUserId!);
             if (mounted) setState(() {});
@@ -492,100 +613,342 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     final statusId = status['id'];
     final content = status['content'] ?? '';
     final mediaUrl = status['mediaUrl'] as String?;
-    final reachLimit = status['reachLimit'] as int?;
-    final currentViews = _statusViewCounts[statusId] ?? 0;
     final hasViewed = _statusViewedByUser.containsKey('${statusId}_$_currentUserId');
+
+    // Expiration logic...
     final isExpired = (status['expiresAt'] as Timestamp?)?.toDate().isBefore(DateTime.now()) ?? false;
-
-    // Don't show expired statuses
     if (isExpired) return const SizedBox();
-
-    // Don't show if reach limit exceeded
-    if (reachLimit != null && currentViews >= reachLimit) return const SizedBox();
 
     return GestureDetector(
       onTap: () => _viewStatus(context, status),
       child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 12),
+        width: 76, // Fixed width constraints
+        margin: const EdgeInsets.symmetric(horizontal: 4), // Tighter spacing like WhatsApp
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
           children: [
-            // Status circle
-            Stack(
-              children: [
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: hasViewed
-                        ? LinearGradient(
-                      colors: [Colors.grey.shade400, Colors.grey.shade600],
-                    )
-                        : LinearGradient(
-                      colors: [colorScheme.primary, colorScheme.secondary],
-                    ),
-                    border: Border.all(
-                      color: hasViewed ? Colors.grey : colorScheme.primary,
-                      width: 2,
-                    ),
+            // 1. The Ring + Image
+            Container(
+              padding: const EdgeInsets.all(2), // Space between ring and image
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  // WhatsApp uses grey for viewed, green (your primary) for new
+                  color: hasViewed ? theme.dividerColor : colorScheme.primary,
+                  width: 2,
+                ),
+              ),
+              child: Container(
+                width: 60, // Fixed size
+                height: 60,
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                clipBehavior: Clip.hardEdge,
+                child: mediaUrl != null
+                    ? Image.network(
+                  mediaUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: colorScheme.surfaceVariant,
+                    child: Icon(Icons.broken_image, size: 20, color: colorScheme.onSurfaceVariant),
                   ),
-                  child: mediaUrl != null
-                      ? ClipOval(
-                    child: Image.network(
-                      mediaUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.image,
-                          color: hasViewed ? Colors.grey : colorScheme.onPrimary,
-                          size: 30,
-                        );
-                      },
+                )
+                    : Container(
+                  color: colorScheme.primaryContainer, // Colored background for text-only status
+                  child: Center(
+                    child: Icon(
+                      Icons.text_fields_rounded,
+                      color: colorScheme.onPrimaryContainer,
+                      size: 24,
                     ),
-                  )
-                      : Icon(
-                    Icons.campaign,
-                    color: hasViewed ? Colors.grey : colorScheme.onPrimary,
-                    size: 30,
                   ),
                 ),
-                if (reachLimit != null)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${reachLimit - currentViews}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              content.length > 15 ? '${content.substring(0, 15)}...' : content,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: hasViewed ? Colors.grey : colorScheme.onSurface,
-                fontWeight: hasViewed ? FontWeight.normal : FontWeight.bold,
               ),
-              maxLines: 2,
+            ),
+
+            const SizedBox(height: 6),
+
+            // 2. The Name/Caption (Truncated)
+            Text(
+              // Use the creator's name instead of content preview (Standard UX)
+              status['createdByName']?.split(' ')[0] ?? 'Admin',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                // Dimmed text for viewed, Bold for new
+                color: hasViewed ? theme.textTheme.bodySmall?.color : colorScheme.onSurface,
+                fontWeight: hasViewed ? FontWeight.normal : FontWeight.w600,
+              ),
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // --- CREATE STATUS DIALOG WITH IMAGE UPLOAD ---
+  void _showCreateStatusDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    String content = '';
+    String? mediaUrl;
+    int? reachLimit;
+    int durationHours = 24;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Create Status/Ad'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Content Text Field
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Content/Message',
+                        hintText: 'Enter your ad message here...',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => content = value,
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Image Selection Section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add Image (Optional)',
+                          style: theme.textTheme.bodyMedium!.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Selected Image Preview
+                        if (_selectedImage != null)
+                          Column(
+                            children: [
+                              Container(
+                                height: 150,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: colorScheme.primary),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    File(_selectedImage!.path),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _removeSelectedImage(),
+                                    icon: const Icon(Icons.delete, size: 18),
+                                    label: const Text('Remove'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red.shade50,
+                                      foregroundColor: Colors.red,
+                                    ),
+                                  ),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _pickImageFromGallery(),
+                                    icon: const Icon(Icons.change_circle, size: 18),
+                                    label: const Text('Change'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        else if (_isUploadingImage)
+                          Column(
+                            children: [
+                              Container(
+                                height: 150,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey),
+                                ),
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      SizedBox(height: 8),
+                                      Text('Uploading image...'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await _pickImageFromGallery();
+                              setStateDialog(() {});
+                            },
+                            icon: const Icon(Icons.image),
+                            label: const Text('Pick Image from Gallery'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 50),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Reach Limit
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Reach Limit (optional)',
+                        hintText: 'e.g., 300 for first 300 users',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        if (value.isNotEmpty) {
+                          reachLimit = int.tryParse(value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Duration Slider
+                    Row(
+                      children: [
+                        Text('Duration: ', style: theme.textTheme.bodyMedium),
+                        Expanded(
+                          child: Slider(
+                            value: durationHours.toDouble(),
+                            min: 1,
+                            max: 168,
+                            divisions: 167,
+                            label: '$durationHours hours',
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                durationHours = value.toInt();
+                              });
+                            },
+                          ),
+                        ),
+                        Text('${durationHours}h',
+                            style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    if (reachLimit != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Ad will be shown to first $reachLimit users only',
+                          style: theme.textTheme.bodySmall!.copyWith(color: Colors.orange),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _removeSelectedImage();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: _isUploadingImage
+                      ? null
+                      : () async {
+                    if (content.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter content')),
+                      );
+                      return;
+                    }
+
+                    String? finalMediaUrl;
+
+                    // Upload image if selected
+                    if (_selectedImage != null) {
+                      final imageFile = File(_selectedImage!.path);
+                      finalMediaUrl = await _uploadImageToFirebase(imageFile);
+                      if (finalMediaUrl == null) {
+                        // Upload failed
+                        return;
+                      }
+                    }
+
+                    final expiresAt = DateTime.now().add(Duration(hours: durationHours));
+
+                    try {
+                      await _firestore.collection('statuses').add({
+                        'content': content,
+                        'mediaUrl': finalMediaUrl,
+                        'reachLimit': reachLimit,
+                        'createdBy': _currentUserId,
+                        'createdByName': _currentUserName,
+                        'createdAt': FieldValue.serverTimestamp(),
+                        'expiresAt': Timestamp.fromDate(expiresAt),
+                        'type': 'ad',
+                      });
+
+                      // Clear selected image after successful creation
+                      _removeSelectedImage();
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Status/Ad created successfully'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint('Error creating status: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error creating status: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    disabledBackgroundColor: Colors.grey,
+                  ),
+                  child: _isUploadingImage
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Text('Create', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -606,30 +969,49 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
         actions: [
-          if (_currentUserRole == 'admin')
+          IconButton(
+            icon: Icon(Icons.refresh, color: Colors.blue),
+            tooltip: 'Refresh status stream',
+            onPressed: () {
+              debugPrint('=== MANUAL REFRESH ===');
+              debugPrint('Current user ID: $_currentUserId');
+              debugPrint('Current user role: $_currentUserRole');
+              debugPrint('Status stream: $_statusStream');
+              _setupStatusStream();
+              if (mounted) setState(() {});
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.bug_report, color: Colors.orange),
+            tooltip: 'Check Firestore access',
+            onPressed: _checkFirestoreAccess,
+          ),
+          if (_currentUserRole == 'admin') ...[
+            IconButton(
+              icon: Icon(Icons.add, color: Colors.green),
+              tooltip: 'Create test status',
+              onPressed: _createTestStatusManually,
+            ),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
               tooltip: 'Create Status/Ad',
               onPressed: () => _showCreateStatusDialog(context),
             ),
+          ],
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _chatStream,
         builder: (context, snap) {
-          // Determine the data source: Live docs if available, otherwise cached maps
           List<Map<String, dynamic>> chatDataList;
 
           if (snap.hasData) {
-            // Live data: Convert docs to maps for consistency
             chatDataList = snap.data!.docs.map((doc) {
               return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
             }).toList();
           } else if (_cachedChatMaps != null) {
-            // Cache fallback
             chatDataList = _cachedChatMaps!;
           } else {
-            // Initial loading without cache
             chatDataList = [];
           }
 
@@ -650,7 +1032,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
                   }
 
                   if (statusSnap.hasData && statusSnap.data!.docs.isNotEmpty) {
-                    // Fetch view counts for each status
                     final statuses = statusSnap.data!.docs.map((doc) {
                       final data = doc.data() as Map<String, dynamic>;
                       return {'id': doc.id, ...data};
@@ -719,15 +1100,15 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
                     ? Center(child: Text("No chats available", style: theme.textTheme.bodyMedium))
                     : ListView(
                   children: [
-                    // 1. General/DM Chats
                     _buildSectionHeader(context, "Direct Messages & Course Chat", colorScheme.primary),
                     ...chatDataList.map((chatMap) => _buildChatEntry(context, chatMap)).toList(),
 
-                    // 2. Specific Group Subdivisions
                     if (_userSpecificGroups.isNotEmpty) ...[
                       Divider(color: theme.dividerColor, height: 20),
                       _buildSectionHeader(context, "Your Group Subdivisions", colorScheme.secondary),
-                      ..._userSpecificGroups.map((groupData) => _buildSpecificGroupTile(context, groupData)).toList(),
+                      ..._userSpecificGroups
+                          .map((groupData) => _buildSpecificGroupTile(context, groupData))
+                          .toList(),
                     ],
                   ],
                 ),
@@ -745,130 +1126,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     );
   }
 
-  void _showCreateStatusDialog(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    String content = '';
-    String mediaUrl = '';
-    int? reachLimit;
-    int durationHours = 24;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Status/Ad'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Content/Message',
-                  hintText: 'Enter your ad message here...',
-                ),
-                onChanged: (value) => content = value,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Media URL (optional)',
-                  hintText: 'https://example.com/image.jpg',
-                ),
-                onChanged: (value) => mediaUrl = value,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Reach Limit (optional)',
-                  hintText: 'e.g., 300 for first 300 users',
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  if (value.isNotEmpty) {
-                    reachLimit = int.tryParse(value);
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text('Duration: ', style: theme.textTheme.bodyMedium),
-                  Expanded(
-                    child: Slider(
-                      value: durationHours.toDouble(),
-                      min: 1,
-                      max: 168, // 7 days
-                      divisions: 167,
-                      label: '$durationHours hours',
-                      onChanged: (value) {
-                        durationHours = value.toInt();
-                        if (mounted) setState(() {});
-                      },
-                    ),
-                  ),
-                  Text('${durationHours}h', style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              if (reachLimit != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    'Ad will be shown to first $reachLimit users only',
-                    style: theme.textTheme.bodySmall!.copyWith(color: Colors.orange),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (content.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter content')),
-                );
-                return;
-              }
-
-              final expiresAt = DateTime.now().add(Duration(hours: durationHours));
-
-              await _firestore.collection('statuses').add({
-                'content': content,
-                'mediaUrl': mediaUrl.isNotEmpty ? mediaUrl : null,
-                'reachLimit': reachLimit,
-                'createdBy': _currentUserId,
-                'createdByName': _currentUserName,
-                'createdAt': FieldValue.serverTimestamp(),
-                'expiresAt': Timestamp.fromDate(expiresAt),
-                'type': 'ad',
-              });
-
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Status/Ad created successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-            ),
-            child: const Text('Create', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(BuildContext context, String title, Color color) {
     return Padding(
       padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0, bottom: 8.0),
@@ -882,7 +1139,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     );
   }
 
-  // Builds a tile for chats fetched directly from the 'chats' stream/cache
   Widget _buildChatEntry(BuildContext context, Map<String, dynamic> chat) {
     final chatId = chat['id'] as String? ?? 'tempId';
     final type = chat['type'] ?? 'dm';
@@ -893,7 +1149,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
       final otherUid = participants.firstWhere((id) => id != _currentUserId, orElse: () => '');
       if (otherUid.isEmpty) return const SizedBox();
 
-      final title = _userNameCache[otherUid] ?? otherUid; // Use cache or fallback UID
+      final title = _userNameCache[otherUid] ?? otherUid;
 
       return _chatTile(
         context,
@@ -905,7 +1161,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
       );
     }
 
-    // Group/General Chat
     final name = chat['name'] ?? "Chat";
     return _chatTile(
       context,
@@ -916,12 +1171,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     );
   }
 
-  // Builds a tile for the specific A/B/General chats from the custom loaded list
   Widget _buildSpecificGroupTile(BuildContext context, Map<String, dynamic> groupData) {
-    final theme = Theme.of(context);
-
-    // Note: Since these chats are constructed locally, they won't have live 'lastMessage'
-
     return _chatTile(
       context,
       chatId: groupData['chatId'] as String,
@@ -931,7 +1181,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
     );
   }
 
-  // --- Base Chat Tile UI (Themed) ---
   Widget _chatTile(
       BuildContext context, {
         required String chatId,
@@ -1033,9 +1282,8 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
   }
 }
 
-// FIXED: Made this a private class (prefixed with underscore)
-// and removed the abstract class instantiation issue
 class _StatusViewerDialog extends StatefulWidget {
+  // ... (keep your existing constructor and fields)
   final Map<String, dynamic> status;
   final String? mediaUrl;
   final String content;
@@ -1060,20 +1308,16 @@ class _StatusViewerDialog extends StatefulWidget {
 
 class __StatusViewerDialogState extends State<_StatusViewerDialog> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  bool _viewCompleted = false;
-  bool _showDetails = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
+      duration: const Duration(seconds: 5), // Standard 5s duration
     )..forward().whenComplete(() {
-      if (!_viewCompleted) {
-        _viewCompleted = true;
-        widget.onViewComplete();
-      }
+      widget.onViewComplete();
+      if (mounted) Navigator.of(context).pop(); // Auto-close
     });
   }
 
@@ -1087,175 +1331,141 @@ class __StatusViewerDialogState extends State<_StatusViewerDialog> with SingleTi
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final createdAt = (widget.status['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-    final createdByName = widget.status['createdByName'] as String? ?? 'Admin';
+    final timeSent = (widget.status['createdAt'] as Timestamp?)?.toDate();
+    final timeString = timeSent != null ? "${timeSent.hour}:${timeSent.minute.toString().padLeft(2, '0')}" : "";
 
-    return Dialog(
-      backgroundColor: Colors.black.withOpacity(0.9),
-      insetPadding: const EdgeInsets.all(20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Stack(
+    return Scaffold(
+      backgroundColor: Colors.black, // Immersive background
+      body: Stack(
         children: [
-          // Background content
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Progress bar
-              LinearProgressIndicator(
-                value: _controller.value,
-                backgroundColor: Colors.grey[800],
-                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-              ),
-
-              // Media or icon
-              Expanded(
-                child: Center(
-                  child: widget.mediaUrl != null && widget.mediaUrl!.isNotEmpty
-                      ? Image.network(
-                    widget.mediaUrl!,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.broken_image,
-                        size: 100,
-                        color: colorScheme.onSurface,
-                      );
-                    },
-                  )
-                      : Icon(
-                    Icons.campaign,
-                    size: 100,
-                    color: colorScheme.primary,
-                  ),
+          // A. MEDIA LAYER
+          Center(
+            child: widget.mediaUrl != null
+                ? Image.network(
+              widget.mediaUrl!,
+              fit: BoxFit.contain,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return CircularProgressIndicator(color: colorScheme.primary);
+              },
+            )
+                : Container(
+              color: Colors.blueGrey.shade900, // Background for text-only status
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(30),
+              child: Text(
+                widget.content,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontFamily: 'sans-serif-light',
                 ),
               ),
-
-              // Content
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.content,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: colorScheme.primary,
-                          child: Text(
-                            createdByName.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                createdByName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                '${createdAt.hour}:${createdAt.minute.toString().padLeft(2, '0')}',
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (widget.reachLimit != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.orange),
-                            ),
-                            child: Text(
-                              '${widget.viewCount}/${widget.reachLimit} views',
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    if (_showDetails && widget.isAdmin)
-                      Container(
-                        margin: const EdgeInsets.only(top: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Ad Analytics:',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Views: ${widget.viewCount}',
-                              style: TextStyle(color: Colors.grey[300]),
-                            ),
-                            if (widget.reachLimit != null)
-                              Text(
-                                'Remaining views: ${widget.reachLimit! - widget.viewCount}',
-                                style: TextStyle(color: Colors.grey[300]),
-                              ),
-                            Text(
-                              'Created: ${createdAt.day}/${createdAt.month}/${createdAt.year}',
-                              style: TextStyle(color: Colors.grey[300]),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Close button
-          Positioned(
-            top: 16,
-            right: 16,
-            child: IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close, color: Colors.white),
             ),
           ),
 
-          // Details toggle for admin
+          // B. CAPTION OVERLAY (Bottom Gradient)
+          if (widget.mediaUrl != null && widget.content.isNotEmpty)
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 40, 16, 40), // Safe area + gradient space
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent],
+                  ),
+                ),
+                child: Text(
+                  widget.content,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+
+          // C. TOP CONTROLS (Progress + User Info)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 0, right: 0,
+            child: Column(
+              children: [
+                // 1. Progress Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: AnimatedBuilder(
+                      animation: _controller,
+                      builder: (context, child) {
+                        return LinearProgressIndicator(
+                          value: _controller.value,
+                          minHeight: 3,
+                          backgroundColor: Colors.grey.withOpacity(0.5),
+                          valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // 2. Header Row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: colorScheme.primary,
+                        child: Text(
+                          (widget.status['createdByName'] ?? 'A')[0].toUpperCase(),
+                          style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.status['createdByName'] ?? 'Admin',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                          ),
+                          Text(
+                            timeString,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // D. ADMIN METRICS (Optional)
           if (widget.isAdmin)
             Positioned(
-              top: 16,
-              left: 16,
-              child: IconButton(
-                onPressed: () => setState(() => _showDetails = !_showDetails),
-                icon: Icon(
-                  _showDetails ? Icons.info : Icons.info_outline,
-                  color: Colors.white,
+              bottom: 40,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.black54,
+                child: Row(
+                  children: [
+                    const Icon(Icons.remove_red_eye, color: Colors.white70, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.viewCount} views',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
                 ),
               ),
             ),
