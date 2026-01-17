@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -188,7 +190,6 @@ class _LoginPageState extends State<LoginPage> {
               child: const Text('Resend Email'),
               onPressed: () async {
                 Navigator.of(context).pop();
-                await _sendVerificationEmail(user);
                 await _sendVerificationEmail(user);
                 _startEmailVerificationCheck(user);
               },

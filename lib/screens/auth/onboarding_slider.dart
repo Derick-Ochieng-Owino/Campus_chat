@@ -1,4 +1,6 @@
 // lib/screens/onboarding/onboarding_slider.dart
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,8 +44,8 @@ class _OnboardingSliderState extends State<OnboardingSlider> {
     },
     {
       'title': 'Alma Mater',
-      'description': 'Your All In One School Solution',
-      'image': 'assets/images/onboarding_5.jpg',
+      'description': 'Unlock your potential with personalized learning',
+      'image': 'assets/images/onboarding_5.png',
     },
   ];
 

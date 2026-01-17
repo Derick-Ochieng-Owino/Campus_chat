@@ -53,13 +53,13 @@ class UniversityData {
     return years?.keys.toList() ?? [];
   }
 
-  List<String> getSemesters(String university, String campus, String college, String school, String dept, String course, String yearKey) {
-    final sems = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey] as Map<String, dynamic>?;
+  List<String> getSemesters(String university, String campus, String college, String school, String dept, String course, String year) {
+    final sems = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[year] as Map<String, dynamic>?;
     return sems?.keys.toList() ?? [];
   }
 
-  List<Map<String, dynamic>> getUnits(String university, String campus, String college, String school, String dept, String course, String yearKey, String semesterKey) {
-    final items = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[yearKey]?[semesterKey];
+  List<Map<String, dynamic>> getUnits(String university, String campus, String college, String school, String dept, String course, String year, String semester) {
+    final items = universities[university]?['campuses']?[campus]?['colleges']?[college]?['schools']?[school]?['departments']?[dept]?['courses']?[course]?['years']?[year]?[semester];
     if (items == null) return [];
     try {
       return List<Map<String, dynamic>>.from((items as List).map((e) => Map<String, dynamic>.from(e)));
@@ -90,8 +90,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   String? _selectedSchool;
   String? _selectedDept;
   String? _selectedCourse;
-  String? _selectedYearKey; // e.g. "year1"
-  String? _selectedSemesterKey; // e.g. "semester1"
+  String? _selectedYear; // e.g. "year1"
+  String? _selectedSemester; // e.g. "semester1"
 
   List<String> _universities = [];
   List<String> _campuses = [];
@@ -122,8 +122,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         _selectedSchool == null ||
         _selectedDept == null ||
         _selectedCourse == null ||
-        _selectedYearKey == null ||
-        _selectedSemesterKey == null) {
+        _selectedYear == null ||
+        _selectedSemester == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please complete all fields'), backgroundColor: colorScheme.error));
       return;
     }
@@ -138,8 +138,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         _selectedSchool!,
         _selectedDept!,
         _selectedCourse!,
-        _selectedYearKey!,
-        _selectedSemesterKey!,
+        _selectedYear!,
+        _selectedSemester!,
       );
 
       if (units.isEmpty) {
@@ -154,8 +154,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         school: _selectedSchool!,
         department: _selectedDept!,
         course: _selectedCourse!,
-        yearKey: _selectedYearKey!,
-        semesterKey: _selectedSemesterKey!,
+        year: _selectedYear!,
+        semester: _selectedSemester!,
         registeredUnits: units,
       );
 
@@ -179,8 +179,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedSchool = null;
       _selectedDept = null;
       _selectedCourse = null;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       // Load the next level: Campuses
       _campuses = university == null ? [] : _universityData.getCampuses(university);
@@ -203,8 +203,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedSchool = null;
       _selectedDept = null;
       _selectedCourse = null;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       _colleges = campus == null ? [] : _universityData.getColleges(_selectedUniversity!, campus);
       _departments = [];
@@ -221,8 +221,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedSchool = null;
       _selectedDept = null;
       _selectedCourse = null;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       _schools = (college == null) ? [] : _universityData.getSchools(_selectedUniversity!, _selectedCampus!, college);
       _departments = [];
@@ -238,8 +238,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       _selectedSchool = school;
       _selectedDept = null;
       _selectedCourse = null;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       _departments = (school == null) ? [] : _universityData.getDepartments(_selectedUniversity!, _selectedCampus!, _selectedCollege!, school);
       _courses = [];
@@ -253,8 +253,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     setState(() {
       _selectedDept = dept;
       _selectedCourse = null;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       _courses = (dept == null) ? [] : _universityData.getCourses(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, dept);
       _years = [];
@@ -266,25 +266,25 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null) return;
     setState(() {
       _selectedCourse = course;
-      _selectedYearKey = null;
-      _selectedSemesterKey = null;
+      _selectedYear = null;
+      _selectedSemester = null;
 
       _years = (course == null) ? [] : _universityData.getYears(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, course);
       _semesters = [];
     });
   }
 
-  void _onYearChanged(String? yearKey) {
+  void _onYearChanged(String? year) {
     if (_selectedUniversity == null || _selectedCampus == null || _selectedCollege == null || _selectedSchool == null || _selectedDept == null || _selectedCourse == null) return;
     setState(() {
-      _selectedYearKey = yearKey;
-      _selectedSemesterKey = null;
+      _selectedYear = year;
+      _selectedSemester = null;
 
-      _semesters = (yearKey == null) ? [] : _universityData.getSemesters(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, yearKey);
+      _semesters = (year == null) ? [] : _universityData.getSemesters(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, year);
     });
   }
 
-  // UI helper: present friendly label for yearKey e.g. "year1" -> "Year 1"
+  // UI helper: present friendly label for year e.g. "year1" -> "Year 1"
   String _displayYear(String key) {
     final match = RegExp(r'\d+').firstMatch(key);
     return match != null ? 'Year ${match.group(0)}' : key;
@@ -337,8 +337,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final selectedUnits = (_selectedUniversity != null && _selectedCampus != null && _selectedCollege != null && _selectedSchool != null && _selectedDept != null && _selectedCourse != null && _selectedYearKey != null && _selectedSemesterKey != null)
-        ? _universityData.getUnits(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, _selectedYearKey!, _selectedSemesterKey!)
+    final selectedUnits = (_selectedUniversity != null && _selectedCampus != null && _selectedCollege != null && _selectedSchool != null && _selectedDept != null && _selectedCourse != null && _selectedYear != null && _selectedSemester != null)
+        ? _universityData.getUnits(_selectedUniversity!, _selectedCampus!, _selectedCollege!, _selectedSchool!, _selectedDept!, _selectedCourse!, _selectedYear!, _selectedSemester!)
         : [];
 
     // final universities = _universityData.getCampuses();
@@ -396,9 +396,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                 _buildDropdown(label: 'Course', value: _selectedCourse, items: _courses, onChanged: _onCourseChanged, icon: Icons.book),
                                 Row(
                                   children: [
-                                    Expanded(child: _buildDropdown(label: 'Year', value: _selectedYearKey, items: _years, onChanged: (v) => _onYearChanged(v), icon: Icons.calendar_today, itemLabel: _displayYear)),
+                                    Expanded(child: _buildDropdown(label: 'Year', value: _selectedYear, items: _years, onChanged: (v) => _onYearChanged(v), icon: Icons.calendar_today, itemLabel: _displayYear)),
                                     const SizedBox(width: 16),
-                                    Expanded(child: _buildDropdown(label: 'Semester', value: _selectedSemesterKey, items: _semesters, onChanged: (v) => setState(() => _selectedSemesterKey = v), icon: Icons.timeline, itemLabel: _displaySemester)),
+                                    Expanded(child: _buildDropdown(label: 'Semester', value: _selectedSemester, items: _semesters, onChanged: (v) => setState(() => _selectedSemester = v), icon: Icons.timeline, itemLabel: _displaySemester)),
                                   ],
                                 ),
 
@@ -424,20 +424,6 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                   ),
                                 const SizedBox(height: 32),
 
-                                // Save Button
-                                // SizedBox(
-                                //   width: double.infinity,
-                                //   child: _isLoading
-                                //       ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-                                //       : ElevatedButton(
-                                //     onPressed: _saveProfile,
-                                //     style: ElevatedButton.styleFrom(
-                                //         backgroundColor: colorScheme.primary,
-                                //         padding: const EdgeInsets.symmetric(vertical: 16),
-                                //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                                //     child: Text('FINISH & VIEW UNITS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
-                                //   ),
-                                // ),
                                 SizedBox(
                                   width: double.infinity,
                                   child: _isLoading

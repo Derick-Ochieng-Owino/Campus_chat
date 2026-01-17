@@ -19,91 +19,160 @@
                           "years": {
                             "1": {
                               "1": [
-                                {"code": "SZL 2111", "title": "HIV/AIDS", "type": "CORE"},
-                                {"code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE"},
-                                {"code": "SMA 2104", "title": "Mathematics for Sciences", "type": "CORE"},
-                                {"code": "ICS 2109", "title": "Computer Operating Systems", "type": "CORE"},
-                                {"code": "BIT 2103", "title": "Introduction to Computer Applications", "type": "CORE"},
-                                {"code": "BBC 2104", "title": "Hardware Systems Support and Maintenance", "type": "CORE"},
-                                {"code": "BBC 2105", "title": "Essentials of Economics", "type": "CORE"},
-                                {"code": "BIT 2104", "title": "Introduction to Programming", "type": "CORE"},
-                                {"code": "HBC 2128", "title": "Introduction to Accounting 1", "type": "CORE"}
+                                { "code": "HBC 2215", "title": "Essentials of Economics", "type": "CORE" },
+                                { "code": "HBC 2101", "title": "Introduction to Accounting I", "type": "CORE" },
+                                { "code": "BIT 2103", "title": "Introduction to Computer Applications", "type": "CORE" },
+                                { "code": "ICS 2202", "title": "Computer Operating Systems", "type": "CORE" },
+                                { "code": "BIT 2104", "title": "Introduction to Programming", "type": "CORE" },
+                                { "code": "BBC 2103", "title": "Hardware Systems Support and Maintenance", "type": "CORE" },
+                                { "code": "SZL 2111", "title": "HIV/AIDS", "type": "CORE" },
+                                { "code": "SMA 2104", "title": "Mathematics for Science", "type": "CORE" },
+                                { "code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE" }
                               ],
                               "2": [
-                                {"code": "BIT 2123", "title": "Computer Network, Design and Management", "type": "CORE"},
-                                {"code": "SDS 2107", "title": "Algebra for Data Science", "type": "CORE"},
-                                {"code": "BIT 2112", "title": "Systems Analysis and Design", "type": "CORE"},
-                                {"code": "ICS 2200", "title": "Analogue Electronics", "type": "CORE"},
-                                {"code": "BIT 2225", "title": "Cloud Computing", "type": "CORE"},
-                                {"code": "HRD 2102", "title": "Development Studies and Social Ethics", "type": "CORE"},
-                                {"code": "BIT 2212", "title": "Business Systems Modelling", "type": "CORE"},
-                                {"code": "SMA 2100", "title": "Discrete Mathematics", "type": "CORE"}
+                                { "code": "BIT 2212", "title": "Business Process Modeling", "type": "CORE" },
+                                { "code": "BIT 2123", "title": "Computer Network, Design and Management", "type": "CORE" },
+                                { "code": "SDS 2107", "title": "Algebra for Data Science", "type": "CORE" },
+                                { "code": "HRD 2102", "title": "Development Studies and Ethics", "type": "CORE" },
+                                { "code": "BIT 2112", "title": "Systems Analysis and Design", "type": "CORE" },
+                                { "code": "ICS 2200", "title": "Analogue Electronics", "type": "CORE" },
+                                { "code": "BIT 2225", "title": "Cloud Computing", "type": "CORE" },
+                                { "code": "SMA 2100", "title": "Discrete Mathematics", "type": "CORE" }
                               ]
                             },
                             "2": {
                               "1": [
-                                {"code": "BIT 2324", "title": "Geographical Information Systems", "type": "CORE"},
-                                {"code": "ICS 2206", "title": "Introduction to Database Management Systems", "type": "CORE"},
-                                {"code": "BIT 2223", "title": "Mobile and Wireless Computing", "type": "CORE"},
-                                {"code": "BIT 2214", "title": "Object-Oriented Analysis and Design", "type": "CORE"},
-                                {"code": "ICS 2104", "title": "Object Oriented Programming I", "type": "CORE"},
-                                {"code": "SMA 2101", "title": "Calculus I", "type": "CORE"},
-                                {"code": "ICS 2203", "title": "Web Application Development I", "type": "CORE"},
-                                {"code": "ICS 2302", "title": "Software Engineering I", "type": "CORE"}
+                                { "code": "BIT 2324", "title": "Geographical Information Systems", "type": "CORE" },
+                                { "code": "ICS 2206", "title": "Introduction to Database Management Systems", "type": "CORE" },
+                                { "code": "BIT 2223", "title": "Mobile and Wireless Computing", "type": "CORE" },
+                                { "code": "BIT 2214", "title": "Object-Oriented Analysis and Design", "type": "CORE" },
+                                { "code": "ICS 2104", "title": "Object Oriented Programming I", "type": "CORE" },
+                                { "code": "SMA 2101", "title": "Calculus I", "type": "CORE" },
+                                { "code": "ICS 2203", "title": "Web Application Development I", "type": "CORE" },
+                                { "code": "ICS 2302", "title": "Software Engineering I", "type": "CORE" }
                               ],
                               "2": [
-                                {"code": "SMA 2102", "title": "Calculus II", "type": "CORE"},
-                                {"code": "BIT 2207", "title": "Web Design and Development II", "type": "CORE"},
-                                {"code": "BIT 2204", "title": "Network Systems Administration", "type": "CORE"},
-                                {"code": "BIT 2118", "title": "Application Programming I", "type": "CORE"},
-                                {"code": "ICS 2105", "title": "Data Structures and Algorithms", "type": "CORE"
-                                },
-                                {"code": "ICS 2201", "title": "Object Oriented Programming II", "type": "CORE"},
-                                {"code": "ICS 2205", "title": "Digital Logic", "type": "CORE"},
-                                {"code": "STA 2100", "title": "Probability and Statistics I", "type": "CORE"},
-                                {"code": "BIT 2122", "title": "Industrial Attachment", "type": "CORE"}
+                                { "code": "SMA 2102", "title": "Calculus II", "type": "CORE" },
+                                { "code": "BIT 2207", "title": "Web Design and Development II", "type": "CORE" },
+                                { "code": "BIT 2204", "title": "Network Systems Administration", "type": "CORE" },
+                                { "code": "BIT 2118", "title": "Application Programming I", "type": "CORE" },
+                                { "code": "ICS 2105", "title": "Data Structures and Algorithms", "type": "CORE" },
+                                { "code": "ICS 2201", "title": "Object Oriented Programming II", "type": "CORE" },
+                                { "code": "ICS 2205", "title": "Digital Logic", "type": "CORE" },
+                                { "code": "STA 2100", "title": "Probability and Statistics I", "type": "CORE" },
+                                { "code": "BIT 2122", "title": "Industrial Attachment", "type": "CORE" }
                               ]
                             },
                             "3": {
                               "1": [
-                                {"code": "BIT 2111", "title": "Computer Aided Design", "type": "CORE"},
-                                {"code": "BIT 2203", "title": "Advanced Programming", "type": "CORE"},
-                                {"code": "BIT 2320", "title": "Mobile Application Development", "type": "CORE"},
-                                {"code": "BIT 2321", "title": "Software Engineering II", "type": "CORE"},
-                                {"code": "BIT 2323", "title": "Application Programming II", "type": "CORE"},
-                                {"code": "ICS 2301", "title": "Design and Analysis of Algorithms", "type": "CORE"},
-                                {"code": "ICS 2404", "title": "Advanced Database Management Systems", "type": "CORE"}
+                                { "code": "BIT 2111", "title": "Computer Aided Design", "type": "CORE" },
+                                { "code": "BIT 2203", "title": "Advanced Programming", "type": "CORE" },
+                                { "code": "BIT 2320", "title": "Mobile Application Development", "type": "CORE" },
+                                { "code": "BIT 2321", "title": "Software Engineering II", "type": "CORE" },
+                                { "code": "BIT 2323", "title": "Application Programming II", "type": "CORE" },
+                                { "code": "ICS 2301", "title": "Design and Analysis of Algorithms", "type": "CORE" },
+                                { "code": "ICS 2404", "title": "Advanced Database Management System", "type": "CORE" }
                               ],
                               "2": [
-                                {"code": "BIT 2215", "title": "Software Project Management", "type": "CORE"},
-                                {"code": "BIT 2301", "title": "Research Methodology", "type": "CORE"},
-                                {"code": "BIT 2319", "title": "Artificial Intelligence", "type": "CORE"},
-                                {"code": "STA 2200", "title": "Probability and Statistics II", "type": "CORE"},
-                                {"code": "ICS 2305", "title": "Systems Programming", "type": "CORE"},
-                                {"code": "BIT 2326", "title": "Internet of Things (IoT) and Embedded Systems", "type": "CORE"},
-                                {"code": "BIT 2327", "title": "Introduction to Cyber Security", "type": "CORE"},
-                                {"code": "BIT 2328", "title": "Cryptography and Blockchain Applications", "type": "CORE"}
+                                { "code": "BIT 2215", "title": "Software Project Management", "type": "CORE" },
+                                { "code": "BIT 2301", "title": "Research Methodology", "type": "CORE" },
+                                { "code": "BIT 2319", "title": "Artificial Intelligence", "type": "CORE" },
+                                { "code": "STA 2200", "title": "Probability and Statistics II", "type": "CORE" },
+                                { "code": "ICS 2305", "title": "Systems Programming", "type": "CORE" },
+                                { "code": "BIT 2326", "title": "Internet of Things (IoT) and Embedded Systems", "type": "CORE" },
+                                { "code": "BIT 2327", "title": "Introduction to Cyber Security", "type": "CORE" },
+                                { "code": "BIT 2328", "title": "Cryptography and Blockchain Applications", "type": "CORE" }
                               ]
                             },
                             "4": {
                               "1": [
-                                {"code": "BIT 2303", "title": "Research Project", "type": "CORE"},
-                                {"code": "BIT 2305", "title": "Human Computer Interactions", "type": "CORE"},
-                                {"code": "BIT 2400", "title": "Introduction to Functional Programming", "type": "CORE"},
-                                {"code": "ICS 2405", "title": "Knowledge Based Systems", "type": "CORE"},
-                                {"code": "ICS 2403", "title": "Distributed Systems", "type": "CORE"},
-                                {"code": "HSC 2408", "title": "Innovation and Technology Transfer", "type": "CORE"},
-                                {"code": "BIT 2210", "title": "Fundamentals of Business Intelligence", "type": "CORE"},
-                                {"code": "BIT 2317", "title": "Computer Systems Security", "type": "CORE"}
+                                { "code": "BIT 2303", "title": "Research Project", "type": "CORE" },
+                                { "code": "BIT 2305", "title": "Human Computer Interactions", "type": "CORE" },
+                                { "code": "BIT 2400", "title": "Introduction to Functional Programming", "type": "CORE" },
+                                { "code": "ICS 2405", "title": "Knowledge Based Systems", "type": "CORE" },
+                                { "code": "ICS 2403", "title": "Distributed Systems", "type": "CORE" },
+                                { "code": "HSC 2408", "title": "Innovation and Technology Transfer", "type": "CORE" },
+                                { "code": "BIT 2210", "title": "Fundamentals of Business Intelligence", "type": "CORE" },
+                                { "code": "BIT 2317", "title": "Computer Systems Security", "type": "CORE" }
                               ],
                               "2": [
-                                {"code": "BIT 2313", "title": "Professional Issues in ICT", "type": "CORE"},
-                                {"code": "BIT 2318", "title": "Information System Audit", "type": "CORE"},
-                                {"code": "BIT 2401", "title": "Advanced Business Intelligence", "type": "CORE"},
-                                {"code": "BIT 2402", "title": "Enterprise Systems Applications and Architecture", "type": "CORE"},
-                                {"code": "ICS 2303", "title": "Multimedia Systems and Applications", "type": "CORE"},
-                                {"code": "HRD 2401", "title": "Entrepreneurship Skills", "type": "CORE"},
-                                {"code": "HBC 2112", "title": "Principles of Marketing", "type": "CORE"}
+                                { "code": "BIT 2313", "title": "Professional Issues in ICT", "type": "CORE" },
+                                { "code": "BIT 2318", "title": "Information System Audit", "type": "CORE" },
+                                { "code": "BIT 2401", "title": "Advanced Business Intelligence", "type": "CORE" },
+                                { "code": "BIT 2402", "title": "Enterprise Systems Applications and Architecture", "type": "CORE" },
+                                { "code": "ICS 2303", "title": "Multimedia Systems and Applications", "type": "CORE" },
+                                { "code": "HRD 2401", "title": "Entrepreneurship Skills", "type": "CORE" },
+                                { "code": "HBC 2112", "title": "Principles of Marketing", "type": "CORE" }
+                              ]
+                            }
+                          }
+                        },
+                        "DIT": {
+                          "full_name": "Diploma in Information Technology",
+                          "years": {
+                            "1": {
+                              "1": [
+                                { "code": "DIT 0101", "title": "Introduction to Computers", "type": "CORE" },
+                                { "code": "DIT 0102", "title": "Introduction to Computer Applications", "type": "CORE" },
+                                { "code": "DIT 0103", "title": "Computer Operating Systems", "type": "CORE" },
+                                { "code": "DIT 0104", "title": "Introduction to Database Management systems", "type": "CORE" },
+                                { "code": "TDH 1100", "title": "Introduction to HIV/AIDS", "type": "CORE" },
+                                { "code": "DIT 0106", "title": "Basic Mathematics for Information Technology", "type": "CORE" },
+                                { "code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE" }
+                              ],
+                              "2": [
+                                { "code": "DIT 0205", "title": "Principles of PC Support and Maintenance", "type": "CORE" },
+                                { "code": "DIT 0201", "title": "Introduction to Programming and Algorithms", "type": "CORE" },
+                                { "code": "DIT 0206", "title": "Analogue Electronics", "type": "CORE" },
+                                { "code": "DIT 0202", "title": "Programming Desktop Applications", "type": "CORE" },
+                                { "code": "DIT 0203", "title": "Web Design and Development I", "type": "CORE" },
+                                { "code": "DIT 0204", "title": "Network Essentials", "type": "CORE" },
+                                { "code": "CED 0217", "title": "Entrepreneurship Skills", "type": "CORE" }
+                              ]
+                            },
+                            "2": {
+                              "1": [
+                                { "code": "DIT 0301", "title": "Object-Oriented Programming I", "type": "CORE" },
+                                { "code": "DIT 0306", "title": "ICT Project I", "type": "CORE" },
+                                { "code": "DIT 0302", "title": "Desktop Publishing", "type": "CORE" },
+                                { "code": "DIT 0307", "title": "Advanced Computer Operating Systems", "type": "CORE" },
+                                { "code": "DIT 0303", "title": "System Analysis and Design", "type": "CORE" },
+                                { "code": "DIT 0304", "title": "Cloud Computing", "type": "CORE" },
+                                { "code": "DIT 0305", "title": "Introduction to Cybersecurity", "type": "CORE" }
+                              ],
+                              "2": [
+                                { "code": "DIT 0401", "title": "Software Engineering", "type": "CORE" },
+                                { "code": "DIT 0403", "title": "Advanced Object-Oriented Programming", "type": "CORE" },
+                                { "code": "DIT 0414", "title": "Digital Photography and Video Editing", "type": "CORE" },
+                                { "code": "DIT 0411", "title": "Mobile Computing", "type": "CORE" },
+                                { "code": "DIT 0408", "title": "Network Design and Administration", "type": "CORE" },
+                                { "code": "CED 0217", "title": "Entrepreneurship Skills", "type": "CORE" }
+                              ]
+                            }
+                          }
+                        },
+                        "CIT": {
+                          "full_name": "Certificate in Information Technology",
+                          "years": {
+                            "1": {
+                              "1": [
+                                { "code": "CIT 0101", "title": "Personal Computer (PC) Hardware", "type": "CORE" },
+                                { "code": "CIT 0106", "title": "Introduction to Internet applications", "type": "CORE" },
+                                { "code": "CIT 0104", "title": "Computer Applications", "type": "CORE" },
+                                { "code": "CIT 0107", "title": "Principles of Electronics", "type": "CORE" },
+                                { "code": "CIT 0110", "title": "Introduction to Computer Operating Systems", "type": "CORE" },
+                                { "code": "CIT 0105", "title": "Introduction to Databases and Data Gathering", "type": "CORE" },
+                                { "code": "TDH 1100", "title": "Introduction to HIV/AIDS", "type": "CORE" },
+                                { "code": "CIT 0102", "title": "Elementary Computer Mathematics", "type": "CORE" }
+                              ],
+                              "2": [
+                                { "code": "CIT 0108", "title": "Elementary Computer Support and Maintenance", "type": "CORE" },
+                                { "code": "CIT 0103", "title": "Principles of Programming Languages", "type": "CORE" },
+                                { "code": "CIT 0112", "title": "Introduction to Application Programming", "type": "CORE" },
+                                { "code": "CIT 0113", "title": "Trade project", "type": "CORE" },
+                                { "code": "CIT 0109", "title": "Networking Skills and Technologies", "type": "CORE" },
+                                { "code": "CILS 2101", "title": "Communication and Information Literacy Skills", "type": "CORE" },
+                                { "code": "CIT 0111", "title": "Entrepreneurship and Life Skills", "type": "CORE" }
                               ]
                             }
                           }
@@ -182,7 +251,7 @@
                                 { "code": "HRD 2102", "title": "Development Studies and Social Ethics", "type": "CORE" }
                               ]
                             },
-                            " 2": {
+                            "2": {
                               "1": [
                                 { "code": "HBE 2201", "title": "Introduction to Financial Accounting", "type": "CORE" },
                                 { "code": "HBE 2202", "title": "Microeconomic Theory II", "type": "CORE" },
@@ -202,7 +271,7 @@
                                 { "code": "HBE 2213", "title": "Institutional Economics", "type": "CORE" }
                               ]
                             },
-                            " 3": {
+                            "3": {
                               "1": [
                                 { "code": "HBE 2301", "title": "Microeconomic Theory III", "type": "CORE" },
                                 { "code": "HBE 2302", "title": "International Economics II", "type": "CORE" },
@@ -222,7 +291,7 @@
                                 { "code": "HBE 2312", "title": "Health Economics II", "type": "CORE" }
                               ]
                             },
-                            " 4": {
+                            "4": {
                               "1": [
                                 { "code": "HBE 2401", "title": "Microeconomic Theory IV", "type": "CORE" },
                                 { "code": "HBE 2402", "title": "Development Planning", "type": "CORE" },

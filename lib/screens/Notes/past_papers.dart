@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,7 +36,6 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
   late Future<List<Unit>> futureUnits;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final Dio _dio = Dio();
   final Map<String, double> _downloadProgress = {}; // noteId -> 0..1
   String? _currentUserRole;
   String? _currentUserName;
@@ -98,18 +99,18 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
 
     final data = doc.data()!;
     final List<dynamic> registeredUnits = data['registered_units'] ?? [];
-    final yearKey = data['year_key'] ?? "year1";
-    final semesterKey = data['semester_key'] ?? "semester1";
-    final year = int.tryParse(yearKey.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
-    final semester =
-        int.tryParse(semesterKey.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+    final year = data['year'] ?? "1";
+    final semester = data['semester'] ?? "1";
+    final currentyear = int.tryParse(year.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+    final currentsemester =
+        int.tryParse(semester.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
 
     final units = registeredUnits
         .map((u) => Unit(
       id: u['code'],
       name: u['title'],
-      year: year,
-      semester: semester,
+      year: currentyear,
+      semester: currentsemester,
     ))
         .toList();
 
@@ -177,9 +178,11 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
       if (mounted) setState(() => _downloadProgress.remove(note.id));
     } catch (e) {
       setState(() => _downloadProgress.remove(note.id));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed: $e')),
       );
+      }
     }
   }
 
@@ -203,8 +206,10 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
   Future<void> _uploadNoteToUnit(Unit unit) async {
     final user = _auth.currentUser;
     if (user == null || !_canUpload()) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Upload permission denied')));
+      }
       return;
     }
 
@@ -312,13 +317,17 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
         'expires_at': Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
       });
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Note uploaded successfully!')),
       );
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Upload failed: $e')),
       );
+      }
     }
   }
 
@@ -357,13 +366,17 @@ class _SampleScreenState extends State<SampleScreen> with AutomaticKeepAliveClie
       final ref = FirebaseStorage.instance.refFromURL(note.url);
       await ref.delete();
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Note "${note.title}" deleted successfully')),
       );
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Delete failed: $e')),
       );
+      }
     }
   }
 

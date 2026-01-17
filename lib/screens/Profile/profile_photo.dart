@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'package:alma_mata/screens/Profile/personal_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -74,6 +76,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
   }
 
   // Final Save profile: writes ALL selected data to user doc
+  // Final Save profile: writes ALL selected data to user doc AND the new collection
   Future<void> _saveAllProfileData() async {
     setState(() => _isLoading = true);
     final theme = Theme.of(context);
@@ -83,11 +86,13 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('No logged in user');
 
+      // Upload photo if selected, otherwise returns null
       final photoUrl = await _uploadProfilePhoto(user.uid);
 
       final academic = widget.academicData;
       final personal = widget.personalData;
 
+      // Consolidate all data into one map
       final profileData = {
         // --- Academic Data ---
         'university' : academic.university,
@@ -96,29 +101,51 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
         'school': academic.school,
         'department': academic.department,
         'course': academic.course,
-        'year_key': academic.yearKey,
-        'semester_key': academic.semesterKey,
+        'year': academic.year,
+        'semester': academic.semester,
         'registered_units': academic.registeredUnits,
 
         // --- Personal Data ---
         'full_name': personal.fullName,
         'nickname': personal.nickname,
         'reg_number': personal.regNumber,
-        'birth_date': personal.birthDate.toIso8601String(), // Store as string
+        'birth_date': personal.birthDate.toIso8601String(),
+        'phone_number': personal.phoneNumber, // Added phone number if available in PersonalDetailsData
 
-        // --- Final Completion Data ---
+        // --- Metadata ---
         'profile_completed': true,
         'profile_photo_url': photoUrl,
         'updated_at': FieldValue.serverTimestamp(),
+        'uid': user.uid, // Useful to have UID inside the document for queries
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData, SetOptions(merge: true));
+      // 1. Save to main 'users' collection (Authentication/Profile usage)
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(profileData, SetOptions(merge: true));
+
+      // 2. Save to new 'university_students' collection (Administrative/Academic usage)
+      // I changed 'universitydata' to 'university_students' to avoid confusion with static data
+      await FirebaseFirestore.instance
+          .collection('university_students')
+          .doc(user.uid)
+          .set(profileData, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Profile setup complete!'), backgroundColor: colorScheme.primary));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('Profile setup complete!'), backgroundColor: colorScheme.primary)
+      );
+
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: colorScheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error saving profile: $e'), backgroundColor: colorScheme.error)
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

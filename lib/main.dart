@@ -1,8 +1,6 @@
 import 'package:alma_mata/screens/announcement/fcm_initializer.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
-
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,17 +17,27 @@ import 'screens/groups/groups_screen.dart';
 
 import 'firebase_options.dart';
 
-// Conditional import for Windows (only if you have a custom wrapper)
-import 'firebase_stub.dart'
-if (dart.library.io) 'firebase_windows.dart';
+// -------------------- BACKGROUND HANDLER --------------------
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  debugPrint('BG message received: ${message.messageId}');
+}
 
+// -------------------- MAIN --------------------
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase for all platforms
-  await FirebaseInitializer.initialize();
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  // Check if user has completed onboarding
+  // Register background handler BEFORE runApp
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Check onboarding status
   final prefs = await SharedPreferences.getInstance();
   final hasCompleted = prefs.getBool('has_completed_onboarding') ?? false;
 
@@ -45,31 +53,9 @@ Future<void> main() async {
       ),
     ),
   );
-
 }
 
-// ======================================================
-// Firebase Initialization Helper
-// ======================================================
-class FirebaseInitializer {
-  static Future<void> initialize() async {
-    if (!kIsWeb && Platform.isWindows) {
-      // Windows-specific Firebase initialization if needed
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    } else {
-      // Normal Firebase initialization for web/mobile
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-  }
-}
-
-// ======================================================
-// ROUTES CONFIGURATION
-// ======================================================
+// -------------------- APP ROUTES --------------------
 class AppRoutes {
   static const String initial = "/";
   static const String home = "/home";
@@ -85,9 +71,7 @@ class AppRoutes {
   };
 }
 
-// ======================================================
-// MAIN APP WIDGET
-// ======================================================
+// -------------------- MAIN APP WIDGET --------------------
 class MyApp extends StatelessWidget {
   final bool hasCompletedOnboarding;
 

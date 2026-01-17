@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,6 +25,13 @@ const Color kSlateGray = Color(0xFF708090);
 const Color kLavenderMist = Color(0xFFE6E6FA);
 const Color kMintJulep = Color(0xFF98FB98);
 const Color kCoralBlush = Color(0xFFFF7F7F);
+
+const kOwlCyan = Color(0xFF2AB6F7);
+const kOwlGold = Color(0xFFEBC66B);
+const kDeepNavy = Color(0xFF040F1F);
+const kSurfaceNavy = Color(0xFF0B1E33);
+const kLightBackground = Color(0xFFF5F7FA);
+const kLightSurface = Color(0xFFFFFFFF);
 
 class AppThemes {
   static const String _prefsKey = 'selected_theme';
@@ -124,6 +133,20 @@ class AppThemes {
 
   // --- All Themes ---
   static final Map<String, ThemeData> all = {
+    'Light Owl Day': _createTheme(
+      primary: kOwlCyan,
+      secondary: kOwlGold,
+      background: kLightBackground,
+      surface: kLightSurface,
+      brightness: Brightness.light,
+    ),
+    'Dark Owl Night': _createTheme(
+      primary: kOwlCyan,
+      secondary: kOwlGold,
+      background: kDeepNavy,
+      surface: kSurfaceNavy,
+      brightness: Brightness.dark,
+    ),
     'Dark Hot Teal': _createTheme(
       primary: kHotTeal,
       secondary: kHotTeal,

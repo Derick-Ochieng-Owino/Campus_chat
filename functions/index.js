@@ -1,10 +1,7 @@
 /**
  * Firebase Cloud Functions
- * Triggers FCM notifications for chat messages and announcements.
- * Sensitive data (like default app ID) should go in environment variables.
- *
- * Example setup:
- *   firebase functions:config:set app.default_app_id="campus-chat-c8499"
+ * Announcement Notifications (FCM)
+ * FILTERED by year_key, semester_key, course, campus, etc.
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
@@ -12,127 +9,266 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
-// --- USE ENVIRONMENT VARIABLE INSTEAD OF functions.config() ---
-const DEFAULT_APP_ID = process.env.FIREBASE_APP_DEFAULT_APP_ID || 'default_app_id';
 const USERS_COLLECTION = 'users';
 
-// Utility: Send FCM notification
-async function sendNotification(notificationType, payloadData, payloadNotification) {
+// ----------------- UTILITY: SEND FCM -----------------
+async function sendMulticastNotification(tokens, data, notification) {
+  if (!tokens.length) {
+    console.log('No tokens to send');
+    return null;
+  }
+
+  // FCM requires data values to be strings
+  const stringData = {};
+  Object.keys(data).forEach(key => {
+    stringData[key] = String(data[key]);
+  });
+
+  const message = {
+    tokens,
+    notification, // shown when app is backgrounded
+    data: stringData, // used by Flutter app
+  };
+
   try {
-    const appId = payloadData.appId || DEFAULT_APP_ID;
-
-    const tokensSnapshot = await admin.firestore()
-      .collection(`apps/${appId}/${USERS_COLLECTION}`)
-      .get();
-
-    const registrationTokens = [];
-    tokensSnapshot.forEach(doc => {
-      const userData = doc.data();
-      if (userData.fcmToken) registrationTokens.push(userData.fcmToken);
-    });
-
-    if (!registrationTokens.length) {
-      console.log(`No tokens found for App ID ${appId}. Skipping notification.`);
-      return null;
-    }
-
-    // Ensure all data values are strings
-    const stringifiedData = {};
-    for (const key in payloadData) {
-      stringifiedData[key] = String(payloadData[key]);
-    }
-
-    const message = {
-      tokens: registrationTokens,
-      data: { ...stringifiedData, type: notificationType },
-      notification: payloadNotification,
-    };
-
     const response = await admin.messaging().sendEachForMulticast(message);
-    console.log(`Sent ${response.successCount} messages, failed: ${response.failureCount}`);
-
+    console.log(`FCM Sent → Success: ${response.successCount}, Failed: ${response.failureCount}`);
     return response;
   } catch (error) {
-    console.error('Error sending notification:', error);
+    console.error('Error sending FCM:', error);
     return null;
   }
 }
 
-// ----------------- CHAT MESSAGE TRIGGER -----------------
-exports.sendChatNotification = onDocumentCreated(
-  'apps/{appId}/chats/{chatId}/messages/{messageId}',
+// ----------------- ANNOUNCEMENT TRIGGER -----------------
+exports.onAnnouncementCreated = onDocumentCreated(
+  'announcements/{announcementId}',
   async (event) => {
-    const snap = event.data;
-    const context = event.params;
+    const announcement = event.data?.data();
+    const announcementId = event.params.announcementId;
 
-    const message = snap || {};
-    const { chatId, appId } = context;
+    if (!announcement) return null;
 
-    if (message.senderId === message.recipientId) return null;
+    const {
+      title = 'New Announcement',
+      description = '',
+      type = 'General',
+      unit_code, // OPTIONAL
+      unit_title, // OPTIONAL
+      semester, // NEW: Filter by semester
+      year, // NEW: Filter by year
+      author_id, // NEW: The user who created the announcement
+    } = announcement;
 
-    const isGroup = chatId.startsWith('group_');
+    console.log(`New announcement created: ${title}, Type: ${type}`);
 
-    const senderSnap = await admin.firestore()
-      .doc(`apps/${appId}/${USERS_COLLECTION}/${message.senderId}`)
-      .get();
-    const senderName = senderSnap.exists ? senderSnap.data().name || 'Unknown User' : 'Unknown User';
+    // 🔹 1. For General announcements - send to everyone (Admin broadcast)
+    if (type === 'General') {
+      console.log('General announcement - sending to all users');
 
-    const text = message.text || '';
-    const title = isGroup
-      ? `💬 New Group Message in ${message.groupName || 'Chat'}`
-      : `👤 New Message from ${senderName}`;
-    const body = `${senderName}: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`;
+      // Fetch all users with FCM tokens
+      const usersSnap = await admin.firestore()
+        .collection(USERS_COLLECTION)
+        .get();
 
-    const payloadNotification = { title, body };
-    const payloadData = {
-      appId,
-      chatId,
-      isGroup: isGroup.toString(),
-      screen: isGroup ? 'group_chat_screen' : 'individual_chat_screen',
+      const tokens = [];
+      usersSnap.forEach(doc => {
+        const user = doc.data();
+        if (user.fcmToken && typeof user.fcmToken === 'string' && user.fcmToken.length > 0) {
+          tokens.push(user.fcmToken);
+        }
+      });
+
+      console.log(`Sending to ${tokens.length} users for general announcement`);
+
+      return sendMulticastNotification(
+        tokens,
+        {
+          type: 'General',
+          announcementId,
+          is_general: 'true',
+        },
+        {
+          title: '📢 General Announcement',
+          body: title.includes('\n') ? title.split('\n')[0] : title,
+        }
+      );
+    }
+
+    // 🔹 2. Get author's data to filter by course/campus/etc.
+    let authorData = null;
+    try {
+      const authorDoc = await admin.firestore()
+        .collection(USERS_COLLECTION)
+        .doc(author_id)
+        .get();
+
+      if (authorDoc.exists) {
+        authorData = authorDoc.data();
+      }
+    } catch (error) {
+      console.error('Error fetching author data:', error);
+    }
+
+    if (!authorData) {
+      console.log('Could not fetch author data, using default filters');
+      return null;
+    }
+
+    const authorCourse = authorData.course || '';
+    const authorCampus = authorData.campus || 'Main';
+    const authorSchool = authorData.school || '';
+    const authorDepartment = authorData.department || '';
+
+    console.log(`Author info: Course=${authorCourse}, Campus=${authorCampus}, School=${authorSchool}`);
+
+    // 🔹 3. Build query based on filters
+    let usersQuery = admin.firestore()
+      .collection(USERS_COLLECTION)
+      .where('fcmToken', '!=', null)
+      .where('fcmToken', '!=', '');
+
+    // Filter by year and semester if provided
+    if (year !== undefined && semester !== undefined) {
+      console.log(`Filtering by year=${year}, semester=${semester}`);
+      usersQuery = usersQuery
+        .where('year', '==', year)
+        .where('semester', '==', semester);
+    }
+
+    // Filter by course if available
+    if (authorCourse && authorCourse.trim() !== '') {
+      console.log(`Filtering by course=${authorCourse}`);
+      usersQuery = usersQuery.where('course', '==', authorCourse);
+    }
+
+    // Filter by campus if available
+    if (authorCampus && authorCampus.trim() !== '') {
+      console.log(`Filtering by campus=${authorCampus}`);
+      usersQuery = usersQuery.where('campus', '==', authorCampus);
+    }
+
+    // 🔹 4. Execute query and filter by unit registration
+    const usersSnap = await usersQuery.get();
+    const tokens = [];
+
+    usersSnap.forEach(doc => {
+      const user = doc.data();
+      const fcmToken = user.fcmToken;
+
+      if (!fcmToken || typeof fcmToken !== 'string' || fcmToken.length === 0) {
+        return;
+      }
+
+      // For non-General types with unit_code, check if user is registered
+      if (unit_code) {
+        const registeredUnits = user.registered_units || [];
+        const isRegistered = registeredUnits.some(
+          u => u.code === unit_code
+        );
+
+        if (!isRegistered) {
+          console.log(`User ${user.email} not registered for unit ${unit_code}`);
+          return;
+        }
+      }
+
+      // Additional school/department filters if needed
+      if (authorSchool && user.school !== authorSchool) return;
+      if (authorDepartment && user.department !== authorDepartment) return;
+
+      tokens.push(fcmToken);
+    });
+
+    console.log(`Filtered tokens: ${tokens.length} users will receive this ${type} notification`);
+
+    if (tokens.length === 0) {
+      console.log('No users match the filters for this announcement');
+      return null;
+    }
+
+    // 🔹 5. Notification title mapping
+    const titleMap = {
+      'Notes': '📚 New Notes',
+      'Past Paper': '📄 Past Paper',
+      'Assignment': '📝 New Assignment',
+      'CAT': '⚠️ Upcoming CAT',
+      'Class Confirmation': '🎓 Class Confirmation',
     };
 
-    return sendNotification('chat', payloadData, payloadNotification);
+    // Prepare notification body
+    let notificationBody = '';
+    if (unit_title) {
+      // Show unit title in notification
+      notificationBody = `${unit_code || ''} - ${description.substring(0, 100)}`;
+    } else {
+      notificationBody = description.substring(0, 120);
+    }
+
+    return sendMulticastNotification(
+      tokens,
+      {
+        type,
+        announcementId,
+        unit_code: unit_code || '',
+        year: year || '',
+        semester: semester || '',
+      },
+      {
+        title: titleMap[type] || '📢 Announcement',
+        body: notificationBody,
+      }
+    );
   }
 );
 
-// ----------------- ANNOUNCEMENT TRIGGER -----------------
-exports.sendAnnouncementNotification = onDocumentCreated(
-  'announcements/{announcementId}',
+// ----------------- WELCOME NOTIFICATION FUNCTION -----------------
+/**
+ * Send welcome notification to new users
+ * Trigger: onUserCreated (when profile_completed becomes true)
+ */
+exports.onUserProfileCompleted = onDocumentCreated(
+  'users/{userId}',
   async (event) => {
-    const snap = event.data;
-    const announcement = snap.data();
-    const announcementId = event.params.announcementId;
+    const userData = event.data?.data();
+    const userId = event.params.userId;
 
-    const categoryKey = (announcement.category || announcement.type || 'general').toLowerCase();
+    if (!userData) return null;
 
-    const categories = {
-      general: '📢 General Announcement',
-      assignment: '📝 New Assignment Posted',
-      assignments: '📝 New Assignment Posted',
-      class_confirmation: '🗓️ Class Confirmed/Cancelled',
-      cats: '⚠️ CAT/Exam Alert',
-      notes: '📄 New Class Notes Released',
+    // Check if profile is completed (based on your app logic)
+    const profileCompleted = userData.profile_completed || false;
+    const fcmToken = userData.fcmToken;
+    const userName = userData.name || 'Student';
+    const course = userData.course || '';
+
+    if (!profileCompleted || !fcmToken) {
+      console.log('Profile not completed or no FCM token');
+      return null;
+    }
+
+    console.log(`Sending welcome notification to ${userName} (${course})`);
+
+    // Send welcome notification only to this user
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: '🎉 Welcome to Campus Chat!',
+        body: `Hi ${userName}! Welcome to ${course || 'the app'}. Get started with your academic journey.`,
+      },
+      data: {
+        type: 'welcome',
+        user_id: userId,
+        screen: 'home',
+      },
     };
 
-    const titlePrefix = categories[categoryKey] || categories.general;
-
-    const content = announcement.description || announcement.content || '';
-    const body =
-      content.length > 80 ? content.substring(0, 80) + '... Tap to view.' : content;
-
-    // Notification content
-    const payloadNotification = {
-      title: `${titlePrefix}`,
-      body,
-    };
-
-    // Data sent with the notification
-    const payloadData = {
-      screen: 'announcements_detail',
-      announcementId,
-      category: categoryKey,
-    };
-
-    return sendNotification('announcement', payloadData, payloadNotification);
+    try {
+      const response = await admin.messaging().send(message);
+      console.log('Welcome notification sent:', response);
+      return response;
+    } catch (error) {
+      console.error('Error sending welcome notification:', error);
+      return null;
+    }
   }
 );

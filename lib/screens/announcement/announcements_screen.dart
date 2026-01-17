@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:alma_mata/screens/announcement/upload_announcement.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +23,7 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
 
   final List<String> _filterOptions = [
     'All',
+    'General',
     'Class Confirmation',
     'Notes',
     'Assignment',
@@ -56,6 +59,7 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
   Color _getColorForType(BuildContext context, String type) {
     final colorScheme = Theme.of(context).colorScheme;
     switch (type) {
+      case 'General': return Colors.lightGreenAccent;
       case 'Notes': return Colors.blue.shade400;
       case 'Past Paper': return Colors.teal.shade400;
       case 'Assignment': return colorScheme.secondary;
@@ -67,6 +71,7 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
 
   IconData _getIconForType(String type) {
     switch (type) {
+      case 'General': return Icons.warehouse_outlined;
       case 'Notes': return Icons.book_rounded;
       case 'Past Paper': return Icons.history_edu_rounded;
       case 'Assignment': return Icons.assignment_turned_in_rounded;
@@ -91,6 +96,7 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
       ),
       floatingActionButton: _canPost
           ? FloatingActionButton(
+        heroTag: 'create_announcement_fab',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const CreateAnnouncementScreen()),
@@ -114,21 +120,50 @@ class _AnnouncementScreenState extends State<AnnouncementScreen> {
 
                 final now = DateTime.now();
 
-                // Real-time Filtering logic
                 final filteredDocs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final type = data['type'] ?? 'General';
                   final targetTimestamp = data['target_date'] as Timestamp?;
 
-                  // 1. Hide Class Confirmations older than 24 hours
-                  if (type == 'Class Confirmation' && targetTimestamp != null) {
-                    if (now.difference(targetTimestamp.toDate()).inHours >= 24) return false;
+                  // Expiry logic
+                  if (targetTimestamp != null) {
+                    final diffHours = now.difference(targetTimestamp.toDate()).inHours;
+                    if ((type == 'Class Confirmation' || type == 'Notes' || type == 'Past Paper') && diffHours >= 24) return false;
+                    if ((type == 'Assignment' || type == 'CAT') && diffHours >= 48) return false;
                   }
 
-                  // 2. Chip Filter
+                  // Chip Filter
                   if (_selectedFilter == 'All') return true;
                   return type == _selectedFilter;
                 }).toList();
+
+                filteredDocs.sort((a, b) {
+                  final dataA = a.data() as Map<String, dynamic>;
+                  final dataB = b.data() as Map<String, dynamic>;
+
+                  final typeA = dataA['type'] ?? '';
+                  final typeB = dataB['type'] ?? '';
+
+                  final targetA = dataA['target_date'] as Timestamp?;
+                  final targetB = dataB['target_date'] as Timestamp?;
+
+                  // Only sort if both are Assignment/CAT/Class Confirmation
+                  const sortTypes = ['Assignment', 'CAT', 'Class Confirmation'];
+
+                  if (sortTypes.contains(typeA) && sortTypes.contains(typeB)) {
+                    if (targetA != null && targetB != null) {
+                      return targetA.toDate().compareTo(targetB.toDate()); // earliest first
+                    } else if (targetA != null) {
+                      return -1; // a comes before b
+                    } else if (targetB != null) {
+                      return 1; // b comes before a
+                    }
+                  }
+
+                  // Default: keep order as fetched (newest first from Firestore)
+                  return 0;
+                });
+
 
                 if (filteredDocs.isEmpty) return _buildEmptyState(theme, colorScheme);
 

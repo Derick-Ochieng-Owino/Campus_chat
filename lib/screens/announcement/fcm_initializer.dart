@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -8,26 +9,19 @@ import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../providers/notification_provider.dart';
 
-// Initialize local notifications plugin
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
 
-// Define the custom notification sound channel (MUST match Android/iOS setup)
-const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'high_importance_channel', // id
-  'High Importance Notifications', // title
-  description: 'This channel is used for important notifications.', // description
+const AndroidNotificationChannel highChannel = AndroidNotificationChannel(
+  'high_importance_channel',
+  'High Importance Notifications',
+  description: 'Used for important alerts',
   importance: Importance.max,
   playSound: true,
-  sound: RawResourceAndroidNotificationSound('notification_sound'), // 'notification_sound' is the file name in res/raw (without extension)
 );
 
-// Top-level function to handle background messages
-// (Must be defined outside any class)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you perform heavy operations here, ensure Firebase is initialized first
-  debugPrint('Handling a background message: ${message.messageId}');
-  // Background messages typically handle navigation or data persistence,
-  // and the OS handles the display/sound based on the payload.
+  debugPrint('BG message: ${message.messageId}');
 }
 
 class FCMInitializer extends StatefulWidget {
@@ -42,18 +36,31 @@ class _FCMInitializerState extends State<FCMInitializer> {
   @override
   void initState() {
     super.initState();
-    _initializeFCM();
+    _initialize();
   }
 
-  // --- 1. Setup and Token Storage ---
-  Future<void> _initializeFCM() async {
-    // 1. Setup Background Handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  Future<void> _initialize() async {
+    // ❌ Firebase Messaging NOT supported on Windows
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      debugPrint('FCM skipped: unsupported platform');
+      return;
+    }
 
-    // 2. Local Notifications Setup
+    FirebaseMessaging.onBackgroundMessage(
+      _firebaseMessagingBackgroundHandler,
+    );
+
+    await _setupLocalNotifications();
+    await _requestPermission();
+    await _handleToken();
+    _setupForegroundListeners();
+  }
+
+  Future<void> _setupLocalNotifications() async {
     await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(highChannel);
 
     await flutterLocalNotificationsPlugin.initialize(
       const InitializationSettings(
@@ -61,87 +68,82 @@ class _FCMInitializerState extends State<FCMInitializer> {
         iOS: DarwinInitializationSettings(),
       ),
     );
+  }
 
-    // 3. Request Permissions
+  Future<void> _requestPermission() async {
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
-      carPlay: false,
     );
-
-    // 4. Handle Token and Store in Firestore
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null && FirebaseAuth.instance.currentUser != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .set({'fcmToken': token}, SetOptions(merge: true));
-      debugPrint("FCM Token stored: $token");
-    }
-
-    // 5. Setup Foreground Listener
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   }
 
-  // --- 2. Foreground Message Handler (CRITICAL for Modal) ---
-  void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('Foreground Message received: ${message.data}');
+  Future<void> _handleToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    final manager = Provider.of<NotificationManager>(context, listen: false);
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null) return;
 
-    // Convert FCM data to our model
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({'fcmToken': token}, SetOptions(merge: true));
+  }
+
+  void _setupForegroundListeners() {
+    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen(_onNotificationTap);
+  }
+
+  // ---------------- FOREGROUND ----------------
+
+  void _onForegroundMessage(RemoteMessage message) {
+    final manager = context.read<NotificationManager>();
+
+    // Extract title & body correctly
+    String title = message.notification?.title ?? '📢 Announcement';
+    String body = message.notification?.body ?? '';
+
     final notification = NotificationData.fromFCM(message.data);
 
-    if (notification.type == NotificationType.classConfirmation ||
-        notification.type == NotificationType.cat) {
+    // Pass extracted title/body to local notification
+    // notification.title = title;
+    // notification.body = body;
 
-      // A. Show Custom Modal
-      manager.showNotification(notification);
+    // Handle in app (custom logic)
+    manager.handle(notification);
 
-      // B. Manually Play Sound (Since the system won't play it in the foreground)
-      flutterLocalNotificationsPlugin.show(
-        0,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            channel.id, channel.name,
-            channelDescription: channel.description,
-            importance: Importance.max,
-            priority: Priority.high,
-            ticker: 'ticker',
-            playSound: true,
-            // Use the same sound name defined in the channel
-            sound: const RawResourceAndroidNotificationSound('notification_sound'),
-          ),
-          iOS: const DarwinNotificationDetails(
-            sound: 'notification_sound.wav', // Match iOS bundled sound file name
-          ),
+    // Show system notification
+    _showSystemNotification(notification);
+  }
+
+
+  void _showSystemNotification(NotificationData n) {
+    flutterLocalNotificationsPlugin.show(
+      n.id.hashCode,
+      n.title,
+      n.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          highChannel.id,
+          highChannel.name,
+          channelDescription: highChannel.description,
+          importance: Importance.max,
+          priority: Priority.high,
         ),
-      );
+        iOS: const DarwinNotificationDetails(),
+      ),
+    );
+  }
 
-    } else {
-      // C. Standard Banner Notification (DMs, Notes Update)
-      flutterLocalNotificationsPlugin.show(
-        notification.id.hashCode, // Use hash code for unique ID
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'default_channel',
-            'Default Notifications',
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
-          ),
-        ),
-      );
-    }
+  // ---------------- TAP ----------------
+
+  void _onNotificationTap(RemoteMessage message) {
+    final notification = NotificationData.fromFCM(message.data);
+    context.read<NotificationManager>().handle(notification);
   }
 
   @override
-  Widget build(BuildContext context) {
-    // This widget sits above the app and handles the FCM setup
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 }

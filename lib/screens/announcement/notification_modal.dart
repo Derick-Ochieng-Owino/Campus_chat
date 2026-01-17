@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
@@ -70,6 +72,22 @@ class ConfirmationModal extends StatelessWidget {
                 ],
               ),
               const Divider(height: 20, thickness: 1),
+
+              TextButton(
+                onPressed: () {
+                  Provider.of<NotificationManager>(context, listen: false).dismissModal();
+
+                  // Navigate based on the notification's targetId / type
+                  if (notification.type == NotificationType.classConfirmation) {
+                    Navigator.pushNamed(context, '/classConfirmation', arguments: notification.targetId);
+                  } else if (notification.type == NotificationType.cat) {
+                    Navigator.pushNamed(context, '/examSchedule', arguments: notification.targetId);
+                  } else {
+                    Navigator.pushNamed(context, '/inbox', arguments: notification.targetId);
+                  }
+                },
+                child: Text('VIEW DETAILS', style: TextStyle(color: notification.color)),
+              ),
 
               // Body
               Text(

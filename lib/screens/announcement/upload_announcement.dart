@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,17 +18,23 @@ class CreateAnnouncementScreen extends StatefulWidget {
 class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
 
   String _selectedType = 'Class Confirmation';
+  String? _selectedUnit;
   DateTime? _selectedDate;
 
   // File Upload State
   PlatformFile? _pickedFile;
   bool _isLoading = false;
+  bool _isFetchingUnits = false;
+
+  // Units data
+  List<Map<String, dynamic>> _units = [];
+  List<String> _unitDisplayNames = [];
 
   final List<String> _types = [
+    'General',
     'Class Confirmation',
     'Notes',
     'Assignment',
@@ -34,13 +42,84 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _fetchUserUnits();
+  }
+
+  @override
   void dispose() {
-    _titleController.dispose();
     _descController.dispose();
     super.dispose();
   }
 
-  // --- 1. FILE PICKER LOGIC (Unchanged) ---
+  // --- FETCH USER UNITS ---
+  Future<void> _fetchUserUnits() async {
+    setState(() => _isFetchingUnits = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (userDoc.exists && userDoc.data() != null) {
+        final userData = userDoc.data()!;
+        if (userData.containsKey('registered_units')) {
+          final List<dynamic> unitsList = userData['registered_units'];
+
+          setState(() {
+            _units = unitsList.map((unit) {
+              return {
+                'code': unit['code'] ?? '',
+                'title': unit['title'] ?? '',
+                'type': unit['type'] ?? 'CORE',
+              };
+            }).toList();
+
+            // Create display names: "BIT 2.1 BIT 2324 Geographical Information Systems"
+            _unitDisplayNames = _units.map((unit) {
+              final code = unit['code'];
+              final title = unit['title'];
+
+              // Extract year and semester from code (e.g., "BIT 2324")
+              String yearSemester = '';
+              if (code.contains(' ')) {
+                final parts = code.split(' ');
+                if (parts.length > 1) {
+                  final codeNumber = parts[1];
+                  if (codeNumber.length >= 4) {
+                    final year = codeNumber.substring(0, 2); // "23"
+                    final semester = codeNumber.substring(2, 3); // "2"
+                    yearSemester = '${parts[0]} $year.$semester';
+                  }
+                }
+              }
+
+              return '$yearSemester $code $title';
+            }).toList();
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error fetching units: $e"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingUnits = false);
+      }
+    }
+  }
+
+  // --- 1. FILE PICKER LOGIC ---
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -48,9 +127,16 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     );
 
     if (result != null) {
-      setState(() {
-        _pickedFile = result.files.first;
-      });
+      final file = result.files.first;
+
+      if (file.size > 5 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("File size exceeds 5MB")),
+        );
+        return;
+      }
+
+      setState(() => _pickedFile = file);
     }
   }
 
@@ -60,7 +146,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     });
   }
 
-  // --- 2. DATE PICKER LOGIC (Themed) ---
+  // --- 2. DATE PICKER LOGIC ---
   Future<void> _pickDate() async {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -71,11 +157,10 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
-        // Theme the DatePicker using the current theme's primary color
         return Theme(
           data: theme.copyWith(
             colorScheme: colorScheme.copyWith(
-              primary: colorScheme.primary, // Use dynamic primary accent
+              primary: colorScheme.primary,
               onPrimary: colorScheme.onPrimary,
               surface: colorScheme.surface,
               onSurface: colorScheme.onSurface,
@@ -92,11 +177,10 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         context: context,
         initialTime: TimeOfDay.now(),
         builder: (context, child) {
-          // Theme the TimePicker using the current theme's primary color
           return Theme(
             data: theme.copyWith(
               colorScheme: colorScheme.copyWith(
-                primary: colorScheme.primary, // Use dynamic primary accent
+                primary: colorScheme.primary,
                 onPrimary: colorScheme.onPrimary,
                 surface: colorScheme.surface,
                 onSurface: colorScheme.onSurface,
@@ -121,9 +205,21 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     }
   }
 
-  // --- 3. UPLOAD & POST LOGIC (Themed Snackbars) ---
+  // --- 3. UPLOAD & POST LOGIC ---
   Future<void> _postAnnouncement() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validate based on type
+    if (_selectedType != 'General' && _selectedUnit == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please select a unit for this announcement"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -140,10 +236,19 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception("Not logged in");
 
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final userData = userDoc.data();
+      final semester = userData?['semester'] ?? 1;
+      final year = userData?['year'] ?? 1;
+
       String? fileUrl;
       String? fileName;
 
-      // A. Upload File to Firebase Storage (if selected) - Logic Unchanged
+      // A. Upload File to Firebase Storage (if selected)
       if (_pickedFile != null && _pickedFile!.path != null) {
         final file = File(_pickedFile!.path!);
         final storageRef = FirebaseStorage.instance
@@ -156,23 +261,46 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         fileName = _pickedFile!.name;
       }
 
-      // B. Save to Firestore - Logic Unchanged
-      await FirebaseFirestore.instance.collection('announcements').add({
-        'title': _titleController.text.trim(),
-        'description': _descController.text.trim(),
+      // B. Prepare announcement data
+      final Map<String, dynamic> announcementData = {
         'type': _selectedType,
+        'description': _descController.text.trim(),
         'target_date': Timestamp.fromDate(_selectedDate!),
         'created_at': FieldValue.serverTimestamp(),
         'author_id': user.uid,
         'attachment_url': fileUrl,
         'attachment_name': fileName,
-      });
+        'semester': semester,
+        'year': year,
+      };
+
+      // C. Add unit-specific or general data
+      if (_selectedType == 'General') {
+        announcementData['title'] = 'General Announcement';
+      } else {
+        final selectedIndex = _unitDisplayNames.indexOf(_selectedUnit!);
+        final unit = _units[selectedIndex];
+
+        // Format: "Class Confirmation\nBIT 2.1 BIT 2324 Geographical Information Systems"
+        announcementData['title'] = '$_selectedType\n${_unitDisplayNames[selectedIndex]}';
+        announcementData['unit_code'] = unit['code'];
+        announcementData['unit_title'] = unit['title'];
+
+        // Save unit code in uppercase format for past papers/notes
+        if (_selectedType == 'Notes' || _selectedType == 'CAT') {
+          announcementData['unit_slug'] = unit['code'].replaceAll(' ', '_').toUpperCase();
+          // e.g., "BIT_2324_GEO_INFO_SYST"
+        }
+      }
+
+      // D. Save to Firestore
+      await FirebaseFirestore.instance.collection('announcements').add(announcementData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text("Announcement posted successfully"),
-            backgroundColor: Theme.of(context).colorScheme.secondary, // Dynamic Secondary Accent
+            backgroundColor: Theme.of(context).colorScheme.secondary,
           ),
         );
         Navigator.pop(context);
@@ -182,7 +310,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error posting: $e"),
-            backgroundColor: Theme.of(context).colorScheme.error, // Dynamic Error Color
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -196,16 +324,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Helper to get consistent text color for labels
     final Color labelColor = colorScheme.onSurface.withOpacity(0.8);
     final Color subtleTextColor = colorScheme.onSurface.withOpacity(0.6);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor, // Dynamic Background
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text("New Announcement", style: theme.textTheme.titleLarge), // Themed Text Style
-        backgroundColor: colorScheme.surface, // Dynamic Surface/AppBar Color
-        foregroundColor: colorScheme.onSurface, // Dynamic Icon/Text Color
+        title: Text("New Announcement", style: theme.textTheme.titleLarge),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
       body: SingleChildScrollView(
@@ -221,7 +348,6 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  // Rely on InputDecorationTheme or define colors explicitly for non-FormField dropdowns
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: colorScheme.onSurface.withOpacity(0.2)),
@@ -241,6 +367,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     onChanged: (newValue) {
                       setState(() {
                         _selectedType = newValue!;
+                        if (_selectedType == 'General') {
+                          _selectedUnit = null;
+                        }
                       });
                     },
                   ),
@@ -248,26 +377,109 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               ),
               const SizedBox(height: 24),
 
-              // --- DETAILS ---
-              Text("Details", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: "Title",
-                  hintText: "e.g., CAT 1 Dates",
-                  // Fill color and border handled by InputDecorationTheme
+              // --- UNIT SELECTION (Only for non-General types) ---
+              if (_selectedType != 'General') ...[
+                Text("Select Unit", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.onSurface.withOpacity(0.2)),
+                  ),
+                  child: _isFetchingUnits
+                      ? Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: colorScheme.primary,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Loading units...",
+                          style: theme.textTheme.bodyMedium!.copyWith(color: subtleTextColor),
+                        ),
+                      ],
+                    ),
+                  )
+                      : DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedUnit,
+                      isExpanded: true,
+                      hint: Text(
+                        "Select a unit",
+                        style: theme.textTheme.bodyMedium!.copyWith(color: subtleTextColor),
+                      ),
+                      style: theme.textTheme.bodyMedium,
+                      dropdownColor: theme.cardColor,
+                      items: _unitDisplayNames.map((String displayName) {
+                        return DropdownMenuItem<String>(
+                          value: displayName,
+                          child: Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedUnit = newValue;
+                        });
+                      },
+                    ),
+                  ),
                 ),
-                validator: (v) => v!.isEmpty ? "Title is required" : null,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 24),
+              ],
+
+              // --- TITLE DISPLAY (For General type) ---
+              if (_selectedType == 'General') ...[
+                Text("Title", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.announcement, color: colorScheme.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "General Announcement",
+                          style: theme.textTheme.bodyMedium!.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // --- DESCRIPTION ---
+              Text("Description", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold, color: labelColor)),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _descController,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  labelText: "Description",
-                  hintText: "Enter details...",
-                  // Fill color and border handled by InputDecorationTheme
+                  labelText: "Enter announcement details...",
+                  hintText: "Provide detailed information...",
                 ),
                 validator: (v) => v!.isEmpty ? "Description is required" : null,
               ),
@@ -288,11 +500,11 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(color: subtleTextColor.withOpacity(0.5), style: BorderStyle.solid),
                       borderRadius: BorderRadius.circular(12),
-                      color: theme.cardColor, // Dynamic Card Color
+                      color: theme.cardColor,
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.cloud_upload_outlined, color: colorScheme.primary, size: 32), // Dynamic Primary
+                        Icon(Icons.cloud_upload_outlined, color: colorScheme.primary, size: 32),
                         const SizedBox(height: 8),
                         Text(
                           "Tap to upload file",
@@ -311,13 +523,13 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer, // Dynamic Primary Container BG
+                    color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.primary), // Dynamic Primary Border
+                    border: Border.all(color: colorScheme.primary),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.attach_file, color: colorScheme.primary), // Dynamic Primary
+                      Icon(Icons.attach_file, color: colorScheme.primary),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -337,7 +549,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.close, color: colorScheme.error), // Dynamic Error
+                        icon: Icon(Icons.close, color: colorScheme.error),
                         onPressed: _clearFile,
                       ),
                     ],
@@ -355,13 +567,13 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    border: Border.all(color: colorScheme.primary), // Dynamic Primary
+                    border: Border.all(color: colorScheme.primary),
                     borderRadius: BorderRadius.circular(12),
-                    color: theme.cardColor, // Dynamic Card Color
+                    color: theme.cardColor,
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.event, color: colorScheme.primary), // Dynamic Primary
+                      Icon(Icons.event, color: colorScheme.primary),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDate == null
@@ -378,6 +590,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
               ),
 
               const SizedBox(height: 32),
+
               // --- POST BUTTON ---
               SizedBox(
                 width: double.infinity,
@@ -385,7 +598,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _postAnnouncement,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary, // Dynamic Primary
+                    backgroundColor: colorScheme.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -396,8 +609,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2), // Dynamic OnPrimary
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2),
                       ),
                       const SizedBox(width: 12),
                       Text("UPLOADING...", style: theme.textTheme.labelLarge!.copyWith(color: colorScheme.onPrimary)),
@@ -408,7 +622,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     style: theme.textTheme.labelLarge!.copyWith(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onPrimary, // Dynamic OnPrimary
+                      color: colorScheme.onPrimary,
                     ),
                   ),
                 ),

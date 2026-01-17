@@ -3,69 +3,60 @@ import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/notification_model.dart';
 
-class NotificationManager with ChangeNotifier {
-  // Stream to push high-priority modal data (Class Confirmation, CAT Reminder)
-  final _modalNotificationStream = StreamController<NotificationData?>.broadcast();
-  Stream<NotificationData?> get modalNotificationStream => _modalNotificationStream.stream;
+class NotificationManager extends ChangeNotifier {
+  NotificationData? _activeModal;
 
-  // The currently displayed high-priority notification data
-  NotificationData? _currentModalNotification;
-  NotificationData? get currentModalNotification => _currentModalNotification;
+  NotificationData? get activeModal => _activeModal;
 
-  // --- 1. Push a new notification into the manager ---
-  void showNotification(NotificationData notification) {
-    // Only high-priority types get the custom modal overlay
-    if (notification.type == NotificationType.classConfirmation ||
-        notification.type == NotificationType.cat) {
-
-      // Set the internal state and push to the stream
-      _currentModalNotification = notification;
-      _modalNotificationStream.add(notification);
-      notifyListeners();
-
-      // Optional: Auto-dismiss modal after 15 seconds
-      Future.delayed(const Duration(seconds: 15), () {
-        if (_currentModalNotification?.id == notification.id) {
-          dismissModal();
-        }
-      });
-
+  /// Entry point for ALL notifications (FCM, Firestore, local)
+  void handle(NotificationData notification) {
+    if (_isHighPriority(notification)) {
+      _showModal(notification);
     } else {
-      // For standard notifications (DMs, Notes Update), the local notification service
-      // handled by FCMInitializer will show the banner/banner notification.
       debugPrint("Standard notification received: ${notification.title}");
+      // handled by system notification tray (FCM)
     }
   }
 
-  // --- 2. Dismiss the modal ---
+  // ---------- MODAL CONTROL ----------
+
+  void _showModal(NotificationData notification) {
+    _activeModal = notification;
+    notifyListeners();
+
+    // Auto-dismiss after 15 seconds
+    Future.delayed(const Duration(seconds: 15), () {
+      if (_activeModal?.id == notification.id) {
+        dismissModal();
+      }
+    });
+  }
+
   void dismissModal() {
-    if (_currentModalNotification != null) {
-      _currentModalNotification = null;
-      _modalNotificationStream.add(null);
+    if (_activeModal != null) {
+      _activeModal = null;
       notifyListeners();
-      debugPrint("Modal dismissed.");
     }
   }
 
-  @override
-  void dispose() {
-    _modalNotificationStream.close();
-    super.dispose();
+  // ---------- PRIORITY LOGIC ----------
+
+  bool _isHighPriority(NotificationData n) {
+    return n.type == NotificationType.classConfirmation ||
+        n.type == NotificationType.cat;
   }
+
+  // ---------- PERMISSIONS ----------
 
   Future<void> requestNotificationPermission() async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    final messaging = FirebaseMessaging.instance;
 
-    NotificationSettings settings = await messaging.requestPermission(
+    final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-    } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      print('User declined or has not accepted permission');
-    }
+    debugPrint('Notification permission: ${settings.authorizationStatus}');
   }
 }

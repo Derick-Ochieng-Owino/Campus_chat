@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -10,8 +12,8 @@ class AcademicProfileData {
   final String school;
   final String department;
   final String course;
-  final String yearKey;
-  final String semesterKey;
+  final String year;
+  final String semester;
   final List<Map<String, dynamic>> registeredUnits;
 
   AcademicProfileData({
@@ -21,8 +23,8 @@ class AcademicProfileData {
     required this.school,
     required this.department,
     required this.course,
-    required this.yearKey,
-    required this.semesterKey,
+    required this.year,
+    required this.semester,
     required this.registeredUnits,
   });
 }

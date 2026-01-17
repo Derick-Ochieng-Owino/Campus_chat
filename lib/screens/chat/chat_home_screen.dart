@@ -1,20 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import '../../widgets/loading_widget.dart';
 import '../chat/user_selection_screen.dart';
 import 'chat_screen.dart';
 
-// Key for SharedPreferences caching
-const String _CACHE_KEY = 'cached_chat_list';
-const String _STATUS_VIEWS_KEY = 'status_views_cache';
+// Cache keys
+const String _CHAT_CACHE_KEY = 'cached_chats_v2';
 
 class ChatHomeScreen extends StatefulWidget {
   const ChatHomeScreen({super.key});
@@ -23,1247 +18,361 @@ class ChatHomeScreen extends StatefulWidget {
   State<ChatHomeScreen> createState() => _ChatHomeScreenState();
 }
 
-class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAliveClientMixin<ChatHomeScreen> {
+class _ChatHomeScreenState extends State<ChatHomeScreen>
+    with AutomaticKeepAliveClientMixin<ChatHomeScreen>, WidgetsBindingObserver {
   @override
   bool get wantKeepAlive => true;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final ImagePicker _imagePicker = ImagePicker();
-  final Uuid _uuid = Uuid();
 
   String? _currentUserId;
-  String? _currentUserRole;
   String? _currentUserName;
+  String? _currentUserCourse;
+  late String _currentYear;
+  String? _currentSemester;
 
-  // State to hold live stream data
-  Stream<QuerySnapshot>? _chatStream;
-  Stream<QuerySnapshot>? _statusStream;
+  // Chat data
+  List<ChatItem> _allChats = [];
+  List<ChatItem> _filteredChats = [];
+  StreamSubscription? _chatSubscription;
 
-  // State to hold cached map data while waiting for the stream
-  List<Map<String, dynamic>>? _cachedChatMaps;
+  // Search
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  List<ChatItem> _searchResults = [];
 
-  // State for status stories
-  Map<String, int> _statusViewCounts = {};
-  Map<String, bool> _statusViewedByUser = {};
-
-  // State to hold specific groups the user belongs to (Subdivided chats)
-  List<Map<String, dynamic>> _userSpecificGroups = [];
+  // User cache
   Map<String, String> _userNameCache = {};
-  bool _userNameCachePreloaded = false;
-
-  // Timer for status refresh
-  Timer? _statusRefreshTimer;
-
-  // Image picking state
-  XFile? _selectedImage;
-  bool _isUploadingImage = false;
-  String? _mediaUrl;
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfileAndCache();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeApp();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshChats();
+    }
   }
 
   @override
   void dispose() {
-    _statusRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _chatSubscription?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _setupStatusRefreshTimer() {
-    // Refresh status every 5 minutes
-    _statusRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      if (mounted) {
-        _checkStatusAvailability();
-      }
-    });
+  Future<void> _initializeApp() async {
+    await _loadUserData();
+    await _loadCachedChats();
+    _setupChatStream();
+    _createOrJoinRequiredGroups();
   }
 
-  void _debugStatusInfo(AsyncSnapshot<QuerySnapshot> statusSnap) {
-    debugPrint('=== STATUS DEBUG INFO ===');
-    debugPrint('Connection state: ${statusSnap.connectionState}');
-    debugPrint('Has data: ${statusSnap.hasData}');
-    debugPrint('Has error: ${statusSnap.hasError}');
-    if (statusSnap.hasError) {
-      debugPrint('Error: ${statusSnap.error}');
-    }
-    if (statusSnap.hasData) {
-      debugPrint('Number of documents: ${statusSnap.data!.docs.length}');
-      for (var doc in statusSnap.data!.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        debugPrint('Status ${doc.id}: ${data['content']}');
-        debugPrint('  - expiresAt: ${data['expiresAt']}');
-        debugPrint('  - reachLimit: ${data['reachLimit']}');
-        debugPrint('  - type: ${data['type']}');
-        debugPrint('  - mediaUrl: ${data['mediaUrl']}');
-      }
-    }
-    debugPrint('=== END DEBUG INFO ===');
-  }
-
-  void _createTestStatusManually() async {
-    try {
-      debugPrint('=== CREATING TEST STATUS MANUALLY ===');
-
-      final expiresAt = DateTime.now().add(const Duration(hours: 24));
-      debugPrint('Expires at: $expiresAt');
-
-      final docRef = await _firestore.collection('statuses').add({
-        'content': 'TEST STATUS - This is a test ad',
-        'createdBy': _currentUserId,
-        'createdByName': _currentUserName ?? 'Test Admin',
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(expiresAt),
-        'reachLimit': 300,
-        'type': 'ad',
-        'mediaUrl': null,
-      });
-
-      debugPrint('Test status created with ID: ${docRef.id}');
-      debugPrint('=== TEST STATUS CREATED ===');
-
-      // Refresh the stream
-      _setupStatusStream();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Test status created: ${docRef.id}'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-    } catch (e) {
-      debugPrint('Error creating test status: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _checkFirestoreAccess() async {
-    try {
-      debugPrint('=== CHECKING FIRESTORE ACCESS ===');
-
-      // Try to read statuses
-      final snapshot = await _firestore.collection('statuses').limit(1).get();
-      debugPrint('Can read statuses: ${snapshot.docs.length} documents found');
-
-      // Try to read users
-      final userSnapshot = await _firestore.collection('users').doc(_currentUserId).get();
-      debugPrint('Can read user document: ${userSnapshot.exists}');
-      if (userSnapshot.exists) {
-        debugPrint('User role: ${userSnapshot.data()?['role']}');
-      }
-
-      debugPrint('=== FIRESTORE ACCESS CHECK COMPLETE ===');
-
-    } catch (e) {
-      debugPrint('Firestore access error: $e');
-    }
-  }
-
-  // --- CACHING & DATA LOADING ---
-  Future<void> _loadUserProfileAndCache() async {
+  Future<void> _loadUserData() async {
     final user = _auth.currentUser;
-    if (user == null) {
-      debugPrint('No user logged in');
-      return;
-    }
+    if (user == null) return;
 
     _currentUserId = user.uid;
-    debugPrint('Loading profile for user: $_currentUserId');
 
-    try {
-      // 1. Load User Data
-      final doc = await _firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) {
-        debugPrint('User document does not exist');
-        return;
-      }
-
-      final data = doc.data();
-      if (data == null) {
-        debugPrint('User data is null');
-        return;
-      }
-
-      final userData = data as Map<String, dynamic>;
-
+    final doc = await _firestore.collection('users').doc(user.uid).get();
+    if (doc.exists) {
+      final data = doc.data()!;
       setState(() {
-        _currentUserRole = userData['role'] as String?;
-        _currentUserName = userData['name'] as String?;
+        _currentUserName = data['name'] ?? data['nickname'] ?? 'User';
+        _currentUserCourse = data['course'];
+        _currentYear= data['year'];
+        _currentSemester = data['semester'];
       });
-
-      debugPrint('User role: $_currentUserRole, name: $_currentUserName');
-
-      // 2. Load Cache Immediately
-      final prefs = await SharedPreferences.getInstance();
-      final cachedJson = prefs.getString(_CACHE_KEY);
-      if (cachedJson != null) {
-        try {
-          final List<dynamic> list = jsonDecode(cachedJson);
-          setState(() {
-            _cachedChatMaps = list.cast<Map<String, dynamic>>();
-          });
-          debugPrint('Loaded ${_cachedChatMaps!.length} cached chats');
-        } catch (e) {
-          debugPrint("Error loading chat cache: $e");
-        }
-      }
-
-      // 3. Setup General Course Chat, Load Groups, and Initialize Live Stream
-      await _ensureGeneralCourseChat(userData);
-      await _loadUserSpecificGroups(userData['groupId'] as String?, userData['subdivision'] as String?);
-
-      // 4. Setup streams
-      _setupStream();
-      _setupStatusStream();
-
-      // 5. Setup timer
-      _setupStatusRefreshTimer();
-
-      // 6. Load status view counts from cache
-      await _loadStatusViewCounts();
-
-    } catch (e) {
-      debugPrint("Error in _loadUserProfileAndCache: $e");
     }
   }
 
-  void _setupStream() {
-    final isAdmin = _currentUserRole == 'admin';
-    Query query = _firestore.collection('chats');
-
-    if (isAdmin) {
-      query = query.where('type', whereIn: ['group', 'general']).orderBy('lastMessageAt', descending: true);
-    } else {
-      query = query.where('participants', arrayContains: _currentUserId).orderBy('lastMessageAt', descending: true);
-    }
-
-    setState(() {
-      _chatStream = query.snapshots().map((snapshot) {
-        _saveCache(snapshot.docs);
-        return snapshot;
-      });
-    });
-  }
-
-  void _setupStatusStream() {
-    debugPrint('Setting up status stream...');
-
-    if (_currentUserId == null) {
-      debugPrint('Cannot setup status stream: currentUserId is null');
-      return;
-    }
-
-    try {
-      final now = DateTime.now();
-
-      debugPrint('Current time: $now');
-      debugPrint('Looking for statuses expiring after: $now');
-
-      Query query = _firestore
-          .collection('statuses')
-          .where('expiresAt', isGreaterThan: Timestamp.fromDate(now))
-          .orderBy('expiresAt', descending: true);
-
-      setState(() {
-        _statusStream = query.snapshots().handleError((error) {
-          debugPrint('Error in status stream: $error');
-        });
-      });
-
-      debugPrint('Status stream setup complete');
-
-      // Test the query
-      query.get().then((snapshot) {
-        debugPrint('Test query found ${snapshot.docs.length} statuses');
-      }).catchError((error) {
-        debugPrint('Test query error: $error');
-      });
-
-    } catch (e) {
-      debugPrint('Error setting up status stream: $e');
-    }
-  }
-
-  Future<void> _loadStatusViewCounts() async {
+  Future<void> _loadCachedChats() async {
     final prefs = await SharedPreferences.getInstance();
-    final viewsJson = prefs.getString(_STATUS_VIEWS_KEY);
+    final cachedJson = prefs.getString(_CHAT_CACHE_KEY);
 
-    if (viewsJson != null) {
+    if (cachedJson != null) {
       try {
-        final Map<String, dynamic> viewsMap = jsonDecode(viewsJson);
+        final List<dynamic> list = jsonDecode(cachedJson);
+        final cachedChats = list.map((item) => ChatItem.fromJson(item)).toList();
         setState(() {
-          _statusViewedByUser = Map<String, bool>.from(viewsMap);
+          _allChats = cachedChats;
+          _filteredChats = _sortAndFilterChats(cachedChats);
         });
       } catch (e) {
-        debugPrint("Error loading status views cache: $e");
+        debugPrint('Error loading cached chats: $e');
       }
     }
   }
 
-  Future<void> _saveStatusViewsCache() async {
+  Future<void> _saveChatsToCache(List<ChatItem> chats) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_STATUS_VIEWS_KEY, jsonEncode(_statusViewedByUser));
+    final jsonList = chats.map((chat) => chat.toJson()).toList();
+    await prefs.setString(_CHAT_CACHE_KEY, jsonEncode(jsonList));
   }
 
-  Future<void> _incrementStatusView(String statusId, String userId) async {
-    if (_statusViewedByUser.containsKey('${statusId}_$userId')) {
-      return;
-    }
+  void _setupChatStream() {
+    if (_currentUserId == null) return;
 
-    final statusRef = _firestore.collection('statuses').doc(statusId);
-    final viewersRef = statusRef.collection('viewers');
+    _chatSubscription?.cancel();
 
-    await _firestore.runTransaction((transaction) async {
-      final countDoc = await transaction.get(viewersRef.doc('count'));
-      final currentCount = countDoc.data()?['count'] as int? ?? 0;
+    // Query for chats where user is a participant
+    final query = _firestore.collection('chats')
+        .where('participants', arrayContains: _currentUserId)
+        .orderBy('lastMessageTime', descending: true);
 
-      transaction.set(
-        viewersRef.doc('count'),
-        {'count': currentCount + 1},
-        SetOptions(merge: true),
-      );
-
-      transaction.set(
-        viewersRef.doc(userId),
-        {'viewedAt': FieldValue.serverTimestamp()},
-      );
+    _chatSubscription = query.snapshots().listen((snapshot) {
+      _processChatUpdates(snapshot.docs);
+    }, onError: (error) {
+      debugPrint('Chat stream error: $error');
     });
-
-    _statusViewedByUser['${statusId}_$userId'] = true;
-    await _saveStatusViewsCache();
-
-    final currentCount = _statusViewCounts[statusId] ?? 0;
-    _statusViewCounts[statusId] = currentCount + 1;
   }
 
-  Future<void> _checkStatusAvailability() async {
-    if (_statusStream == null) return;
-    _setupStatusStream();
-  }
+  void _processChatUpdates(List<QueryDocumentSnapshot> docs) {
+    final updatedChats = <ChatItem>[];
 
-  Future<void> _saveCache(List<QueryDocumentSnapshot> docs) async {
-    final prefs = await SharedPreferences.getInstance();
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final chat = ChatItem.fromFirestore(doc.id, data);
+      updatedChats.add(chat);
 
-    final serializableList = docs.map((doc) {
-      final dataMap = doc.data() as Map<String, dynamic>? ?? {};
-
-      final cleanedMap = dataMap.map((key, value) {
-        if (value is Timestamp) {
-          return MapEntry(key, value.toDate().toIso8601String());
+      // Update user cache for DMs
+      if (chat.type == ChatType.dm) {
+        final otherUserId = chat.participants
+            .firstWhere((id) => id != _currentUserId, orElse: () => '');
+        if (otherUserId.isNotEmpty && !_userNameCache.containsKey(otherUserId)) {
+          _fetchUserName(otherUserId);
         }
-        return MapEntry(key, value);
-      });
-
-      return {'id': doc.id, ...cleanedMap};
-    }).toList();
-
-    await prefs.setString(_CACHE_KEY, jsonEncode(serializableList));
-  }
-
-  // --- IMAGE PICKING AND UPLOAD ---
-  Future<void> _pickImageFromGallery() async {
-    try {
-      final XFile? pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = pickedFile;
-          _mediaUrl = null; // Clear any existing URL when new image is selected
-        });
-      }
-    } catch (e) {
-      debugPrint("Error picking image: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error picking image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     }
-  }
 
-  Future<String?> _uploadImageToFirebase(File imageFile) async {
-    try {
-      setState(() {
-        _isUploadingImage = true;
-      });
+    // Merge with existing chats (for pinned chats that might not be in stream)
+    final existingChatIds = updatedChats.map((c) => c.id).toSet();
+    final preservedChats = _allChats.where((c) => !existingChatIds.contains(c.id)).toList();
 
-      final fileName = 'status_images/${_uuid.v4()}.jpg';
-      final Reference storageRef = _storage.ref().child(fileName);
-
-      final UploadTask uploadTask = storageRef.putFile(
-        imageFile,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-
-      final TaskSnapshot snapshot = await uploadTask.whenComplete(() => null);
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-
-      setState(() {
-        _isUploadingImage = false;
-      });
-
-      return downloadUrl;
-    } catch (e) {
-      debugPrint("Error uploading image: $e");
-      setState(() {
-        _isUploadingImage = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return null;
-    }
-  }
-
-  Future<void> _removeSelectedImage() async {
     setState(() {
-      _selectedImage = null;
-      _mediaUrl = null;
+      _allChats = [...updatedChats, ...preservedChats];
+      _filteredChats = _sortAndFilterChats(_allChats);
     });
+
+    _saveChatsToCache(_allChats);
   }
 
-  // --- GROUP LOGIC ---
-  Future<void> _ensureGeneralCourseChat(Map<String, dynamic> user) async {
-    final course = user['course'] ?? 'default';
-    final year = user['year_key'] ?? 'year1';
-    final semester = user['semester_key'] ?? 'semester1';
-
-    final chatId = 'course_${course}_${year}_${semester}';
-
-    final ref = _firestore.collection('chats').doc(chatId);
-    final doc = await ref.get();
-
-    if (!doc.exists) {
-      await ref.set({
-        'name': 'General Course Chat',
-        'type': 'general',
-        'participants': [_currentUserId],
-        'lastMessage': "Welcome to the course chat!",
-        'lastMessageAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      if (!(doc.data()?['participants'] ?? []).contains(_currentUserId)) {
-        await ref.update({
-          'participants': FieldValue.arrayUnion([_currentUserId])
-        });
-      }
-    }
-  }
-
-  void _preloadUserNames(List<Map<String, dynamic>> chatDataList) {
-    final unknownUids = <String>{};
-
-    for (var chat in chatDataList) {
-      final type = chat['type'] ?? 'dm';
-      if (type != 'dm') continue;
-
-      final participants = (chat['participants'] ?? []).cast<String>();
-      final otherUid = participants.firstWhere((id) => id != _currentUserId, orElse: () => '');
-      if (otherUid.isNotEmpty && !_userNameCache.containsKey(otherUid)) {
-        unknownUids.add(otherUid);
-      }
-    }
-
-    if (unknownUids.isEmpty) return;
-
-    for (var uid in unknownUids) {
-      _firestore.collection('users').doc(uid).get().then((doc) {
-        if (doc.exists) {
-          final name = (doc.data()?['nickname'] ?? doc.data()?['name'] ?? uid) as String;
-          _userNameCache[uid] = name;
-          if (mounted) setState(() {});
-        }
-      });
-    }
-  }
-
-  Future<void> _loadUserSpecificGroups(String? groupId, String? subdivision) async {
-    if (groupId == null) {
-      setState(() => _userSpecificGroups = []);
-      return;
-    }
+  Future<void> _fetchUserName(String userId) async {
+    if (_userNameCache.containsKey(userId)) return;
 
     try {
-      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
-      final groupName = groupDoc.data()?['name'] ?? 'Group';
-
-      final List<Map<String, dynamic>> chats = [];
-      final Map<String, dynamic>? groupData = groupDoc.data();
-
-      if (groupData == null) {
-        setState(() => _userSpecificGroups = []);
-        return;
-      }
-
-      final List<Map<String, dynamic>> membersA =
-          (groupData['A'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-
-      final List<Map<String, dynamic>> membersB =
-          (groupData['B'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-
-      final List<String> uidsA = membersA.map((m) => m['uid'] as String).toList();
-      final List<String> uidsB = membersB.map((m) => m['uid'] as String).toList();
-
-      final List<String> allGroupUids = [
-        ...uidsA,
-        ...uidsB,
-      ];
-
-      chats.add({
-        'name': '$groupName (General)',
-        'type': 'group',
-        'chatId': '${groupId}_general',
-        'participants': allGroupUids,
-      });
-
-      if (subdivision == 'A' || _currentUserRole == 'admin') {
-        chats.add({
-          'name': '$groupName (A)',
-          'type': 'group',
-          'chatId': '${groupId}_A',
-          'subdivision': 'A',
-          'participants': uidsA,
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final name = data['nickname'] ?? data['name'] ?? 'Unknown';
+        setState(() {
+          _userNameCache[userId] = name;
         });
       }
-
-      if (subdivision == 'B' || _currentUserRole == 'admin') {
-        chats.add({
-          'name': '$groupName (B)',
-          'type': 'group',
-          'chatId': '${groupId}_B',
-          'subdivision': 'B',
-          'participants': uidsB,
-        });
-      }
-
-      setState(() {
-        _userSpecificGroups = chats;
-      });
-
     } catch (e) {
-      debugPrint("Error loading specific groups: $e");
-      setState(() => _userSpecificGroups = []);
+      debugPrint('Error fetching user name: $e');
     }
   }
 
-  // --- STATUS/STORY FUNCTIONS ---
-  void _viewStatus(BuildContext context, Map<String, dynamic> status) async {
-    final statusId = status['id'];
-    final content = status['content'] ?? '';
-    final mediaUrl = status['mediaUrl'] as String?;
-    final reachLimit = status['reachLimit'] as int?;
-    final currentViews = _statusViewCounts[statusId] ?? 0;
+  Future<void> _createOrJoinRequiredGroups() async {
+    if (_currentUserId == null || _currentUserCourse == null) return;
 
-    if (reachLimit != null && currentViews >= reachLimit) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('This ad has reached its maximum views'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
+    // 1. General System Chat (for all users)
+    await _ensureGroupChat(
+      id: 'general_system_chat',
+      name: '🌟 Campus Announcements',
+      description: 'General announcements for all users',
+      type: ChatType.system,
+      isPinned: true,
+    );
 
-    showDialog(
-      context: context,
-      builder: (context) => _StatusViewerDialog(
-        status: status,
-        mediaUrl: mediaUrl,
-        content: content,
-        isAdmin: _currentUserRole == 'admin',
-        viewCount: currentViews,
-        reachLimit: reachLimit,
-        onViewComplete: () async {
-          if (_currentUserId != null) {
-            await _incrementStatusView(statusId, _currentUserId!);
-            if (mounted) setState(() {});
-          }
+    // 2. Year & Semester Chat (for users in same year/semester)
+    if (_currentYear != null && _currentSemester != null && _currentUserCourse != null) {
+      // Format: BIT 2.1 or Bsc IT 2.1
+      final courseDisplay = _currentUserCourse!;
+      final yearSemDisplay = '$courseDisplay ${_currentYear}.${_currentSemester}';
+
+      await _ensureGroupChat(
+        id: 'year_${_currentYear}_sem_${_currentSemester}_chat',
+        name: '📚 $yearSemDisplay',
+        description: 'Group for $yearSemDisplay students',
+        type: ChatType.yearGroup,
+        isPinned: true,
+        filters: {
+          'year': _currentYear,
+          'semester': _currentSemester,
+          'course': _currentUserCourse,
         },
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildStatusItem(BuildContext context, Map<String, dynamic> status) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final statusId = status['id'];
-    final content = status['content'] ?? '';
-    final mediaUrl = status['mediaUrl'] as String?;
-    final hasViewed = _statusViewedByUser.containsKey('${statusId}_$_currentUserId');
 
-    // Expiration logic...
-    final isExpired = (status['expiresAt'] as Timestamp?)?.toDate().isBefore(DateTime.now()) ?? false;
-    if (isExpired) return const SizedBox();
-
-    return GestureDetector(
-      onTap: () => _viewStatus(context, status),
-      child: Container(
-        width: 76, // Fixed width constraints
-        margin: const EdgeInsets.symmetric(horizontal: 4), // Tighter spacing like WhatsApp
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-          children: [
-            // 1. The Ring + Image
-            Container(
-              padding: const EdgeInsets.all(2), // Space between ring and image
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  // WhatsApp uses grey for viewed, green (your primary) for new
-                  color: hasViewed ? theme.dividerColor : colorScheme.primary,
-                  width: 2,
-                ),
-              ),
-              child: Container(
-                width: 60, // Fixed size
-                height: 60,
-                decoration: const BoxDecoration(shape: BoxShape.circle),
-                clipBehavior: Clip.hardEdge,
-                child: mediaUrl != null
-                    ? Image.network(
-                  mediaUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: colorScheme.surfaceVariant,
-                    child: Icon(Icons.broken_image, size: 20, color: colorScheme.onSurfaceVariant),
-                  ),
-                )
-                    : Container(
-                  color: colorScheme.primaryContainer, // Colored background for text-only status
-                  child: Center(
-                    child: Icon(
-                      Icons.text_fields_rounded,
-                      color: colorScheme.onPrimaryContainer,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            // 2. The Name/Caption (Truncated)
-            Text(
-              // Use the creator's name instead of content preview (Standard UX)
-              status['createdByName']?.split(' ')[0] ?? 'Admin',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall?.copyWith(
-                // Dimmed text for viewed, Bold for new
-                color: hasViewed ? theme.textTheme.bodySmall?.color : colorScheme.onSurface,
-                fontWeight: hasViewed ? FontWeight.normal : FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- CREATE STATUS DIALOG WITH IMAGE UPLOAD ---
-  void _showCreateStatusDialog(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    String content = '';
-    String? mediaUrl;
-    int? reachLimit;
-    int durationHours = 24;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Create Status/Ad'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Content Text Field
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Content/Message',
-                        hintText: 'Enter your ad message here...',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) => content = value,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Image Selection Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Add Image (Optional)',
-                          style: theme.textTheme.bodyMedium!.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Selected Image Preview
-                        if (_selectedImage != null)
-                          Column(
-                            children: [
-                              Container(
-                                height: 150,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: colorScheme.primary),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    File(_selectedImage!.path),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  ElevatedButton.icon(
-                                    onPressed: () => _removeSelectedImage(),
-                                    icon: const Icon(Icons.delete, size: 18),
-                                    label: const Text('Remove'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red.shade50,
-                                      foregroundColor: Colors.red,
-                                    ),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _pickImageFromGallery(),
-                                    icon: const Icon(Icons.change_circle, size: 18),
-                                    label: const Text('Change'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          )
-                        else if (_isUploadingImage)
-                          Column(
-                            children: [
-                              Container(
-                                height: 150,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey),
-                                ),
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 8),
-                                      Text('Uploading image...'),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              await _pickImageFromGallery();
-                              setStateDialog(() {});
-                            },
-                            icon: const Icon(Icons.image),
-                            label: const Text('Pick Image from Gallery'),
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Reach Limit
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Reach Limit (optional)',
-                        hintText: 'e.g., 300 for first 300 users',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) {
-                        if (value.isNotEmpty) {
-                          reachLimit = int.tryParse(value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Duration Slider
-                    Row(
-                      children: [
-                        Text('Duration: ', style: theme.textTheme.bodyMedium),
-                        Expanded(
-                          child: Slider(
-                            value: durationHours.toDouble(),
-                            min: 1,
-                            max: 168,
-                            divisions: 167,
-                            label: '$durationHours hours',
-                            onChanged: (value) {
-                              setStateDialog(() {
-                                durationHours = value.toInt();
-                              });
-                            },
-                          ),
-                        ),
-                        Text('${durationHours}h',
-                            style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    if (reachLimit != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'Ad will be shown to first $reachLimit users only',
-                          style: theme.textTheme.bodySmall!.copyWith(color: Colors.orange),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _removeSelectedImage();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: _isUploadingImage
-                      ? null
-                      : () async {
-                    if (content.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter content')),
-                      );
-                      return;
-                    }
-
-                    String? finalMediaUrl;
-
-                    // Upload image if selected
-                    if (_selectedImage != null) {
-                      final imageFile = File(_selectedImage!.path);
-                      finalMediaUrl = await _uploadImageToFirebase(imageFile);
-                      if (finalMediaUrl == null) {
-                        // Upload failed
-                        return;
-                      }
-                    }
-
-                    final expiresAt = DateTime.now().add(Duration(hours: durationHours));
-
-                    try {
-                      await _firestore.collection('statuses').add({
-                        'content': content,
-                        'mediaUrl': finalMediaUrl,
-                        'reachLimit': reachLimit,
-                        'createdBy': _currentUserId,
-                        'createdByName': _currentUserName,
-                        'createdAt': FieldValue.serverTimestamp(),
-                        'expiresAt': Timestamp.fromDate(expiresAt),
-                        'type': 'ad',
-                      });
-
-                      // Clear selected image after successful creation
-                      _removeSelectedImage();
-
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Status/Ad created successfully'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint('Error creating status: $e');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error creating status: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    disabledBackgroundColor: Colors.grey,
-                  ),
-                  child: _isUploadingImage
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                      : const Text('Create', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
+    // 3. Course Chat (for users in same course)
+    await _ensureGroupChat(
+      id: 'course_${_currentUserCourse}_chat',
+      name: '🎓 $_currentUserCourse Course',
+      description: 'Group for $_currentUserCourse students',
+      type: ChatType.courseGroup,
+      filters: {
+        'course': _currentUserCourse,
       },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Future<void> _ensureGroupChat({
+    required String id,
+    required String name,
+    required String description,
+    required ChatType type,
+    bool isPinned = false,
+    Map<String, dynamic>? filters,
+  }) async {
+    try {
+      final chatRef = _firestore.collection('chats').doc(id);
+      final doc = await chatRef.get();
 
-    if (_currentUserId == null || _chatStream == null) {
-      return Center(child: AppLogoLoadingWidget(size: 80));
-    }
+      if (!doc.exists) {
+        // Create new group chat
+        await chatRef.set({
+          'name': name,
+          'description': description,
+          'type': type.name,
+          'participants': [_currentUserId],
+          'lastMessage': 'Welcome to $name!',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'filters': filters,
+          'isPinned': isPinned,
+        });
+      } else {
+        // Add user to existing chat if not already a participant
+        final participants = List<String>.from(doc.data()?['participants'] ?? []);
+        if (!participants.contains(_currentUserId)) {
+          await chatRef.update({
+            'participants': FieldValue.arrayUnion([_currentUserId]),
+          });
+        }
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text("Alma Mater Chats"),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: Colors.blue),
-            tooltip: 'Refresh status stream',
-            onPressed: () {
-              debugPrint('=== MANUAL REFRESH ===');
-              debugPrint('Current user ID: $_currentUserId');
-              debugPrint('Current user role: $_currentUserRole');
-              debugPrint('Status stream: $_statusStream');
-              _setupStatusStream();
-              if (mounted) setState(() {});
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.bug_report, color: Colors.orange),
-            tooltip: 'Check Firestore access',
-            onPressed: _checkFirestoreAccess,
-          ),
-          if (_currentUserRole == 'admin') ...[
-            IconButton(
-              icon: Icon(Icons.add, color: Colors.green),
-              tooltip: 'Create test status',
-              onPressed: _createTestStatusManually,
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Create Status/Ad',
-              onPressed: () => _showCreateStatusDialog(context),
-            ),
-          ],
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _chatStream,
-        builder: (context, snap) {
-          List<Map<String, dynamic>> chatDataList;
-
-          if (snap.hasData) {
-            chatDataList = snap.data!.docs.map((doc) {
-              return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
-            }).toList();
-          } else if (_cachedChatMaps != null) {
-            chatDataList = _cachedChatMaps!;
-          } else {
-            chatDataList = [];
-          }
-
-          if (chatDataList.isNotEmpty && !_userNameCachePreloaded) {
-            _userNameCachePreloaded = true;
-            _preloadUserNames(chatDataList);
-          }
-
-          return Column(
-            children: [
-              // Status/Stories Section
-              StreamBuilder<QuerySnapshot>(
-                stream: _statusStream,
-                builder: (context, statusSnap) {
-                  _debugStatusInfo(statusSnap);
-                  if (statusSnap.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(height: 100);
-                  }
-
-                  if (statusSnap.hasData && statusSnap.data!.docs.isNotEmpty) {
-                    final statuses = statusSnap.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return {'id': doc.id, ...data};
-                    }).toList();
-
-                    return Container(
-                      height: 120,
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              children: [
-                                Text(
-                                  "Status & Ads",
-                                  style: theme.textTheme.titleMedium!.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    "${statuses.length} active",
-                                    style: theme.textTheme.bodySmall!.copyWith(
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: statuses.length,
-                              itemBuilder: (context, index) {
-                                return _buildStatusItem(context, statuses[index]);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return const SizedBox(height: 16);
-                },
-              ),
-
-              Divider(color: theme.dividerColor, height: 1),
-
-              // Chats List
-              Expanded(
-                child: (snap.connectionState == ConnectionState.waiting && chatDataList.isEmpty)
-                    ? Center(child: AppLogoLoadingWidget(size: 80))
-                    : (chatDataList.isEmpty && _userSpecificGroups.isEmpty)
-                    ? Center(child: Text("No chats available", style: theme.textTheme.bodyMedium))
-                    : ListView(
-                  children: [
-                    _buildSectionHeader(context, "Direct Messages & Course Chat", colorScheme.primary),
-                    ...chatDataList.map((chatMap) => _buildChatEntry(context, chatMap)).toList(),
-
-                    if (_userSpecificGroups.isNotEmpty) ...[
-                      Divider(color: theme.dividerColor, height: 20),
-                      _buildSectionHeader(context, "Your Group Subdivisions", colorScheme.secondary),
-                      ..._userSpecificGroups
-                          .map((groupData) => _buildSpecificGroupTile(context, groupData))
-                          .toList(),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'chatDmButton',
-        backgroundColor: colorScheme.primary,
-        onPressed: () => _startNewDm(context),
-        child: Icon(Icons.message_rounded, color: colorScheme.onPrimary),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(BuildContext context, String title, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0, bottom: 8.0),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium!.copyWith(
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChatEntry(BuildContext context, Map<String, dynamic> chat) {
-    final chatId = chat['id'] as String? ?? 'tempId';
-    final type = chat['type'] ?? 'dm';
-    final participants = (chat['participants'] ?? []).cast<String>();
-    final subtitle = chat['lastMessage'] ?? "No messages";
-
-    if (type == 'dm') {
-      final otherUid = participants.firstWhere((id) => id != _currentUserId, orElse: () => '');
-      if (otherUid.isEmpty) return const SizedBox();
-
-      final title = _userNameCache[otherUid] ?? otherUid;
-
-      return _chatTile(
-        context,
-        chatId: chatId,
-        title: title,
-        subtitle: subtitle,
-        type: type,
-        otherUserId: otherUid,
-      );
-    }
-
-    final name = chat['name'] ?? "Chat";
-    return _chatTile(
-      context,
-      chatId: chatId,
-      title: name,
-      subtitle: subtitle,
-      type: type,
-    );
-  }
-
-  Widget _buildSpecificGroupTile(BuildContext context, Map<String, dynamic> groupData) {
-    return _chatTile(
-      context,
-      chatId: groupData['chatId'] as String,
-      title: groupData['name'] as String,
-      subtitle: "Tap to chat in ${groupData['subdivision'] ?? 'General'} subdivision.",
-      type: 'group',
-    );
-  }
-
-  Widget _chatTile(
-      BuildContext context, {
-        required String chatId,
-        required String title,
-        required String subtitle,
-        required String type,
-        String? otherUserId,
-      }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final icon = _getIconForChatType(type);
-    final isGroup = type != 'dm';
-
-    return Card(
-      color: theme.cardColor,
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isGroup ? colorScheme.secondary.withOpacity(0.8) : colorScheme.primary.withOpacity(0.7),
-          child: Icon(icon, color: colorScheme.onPrimary),
-        ),
-        title: Text(title, style: theme.textTheme.titleMedium),
-        subtitle: Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ChatScreen(
-                chatId: chatId,
-                chatName: title,
-                otherUserId: otherUserId,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  IconData _getIconForChatType(String type) {
-    switch (type) {
-      case 'group':
-        return Icons.group_rounded;
-      case 'general':
-        return Icons.public_rounded;
-      case 'dm':
-      default:
-        return Icons.person_rounded;
+        // Ensure pin status
+        if (isPinned && (doc.data()?['isPinned'] != true)) {
+          await chatRef.update({'isPinned': true});
+        }
+      }
+    } catch (e) {
+      debugPrint('Error ensuring group chat: $e');
     }
   }
 
-  String _dmId(String a, String b) {
-    final ids = [a, b]..sort();
-    return '${ids[0]}_${ids[1]}';
+  List<ChatItem> _sortAndFilterChats(List<ChatItem> chats) {
+    // Separate pinned and unpinned chats
+    final pinned = chats.where((c) => c.isPinned).toList();
+    final unpinned = chats.where((c) => !c.isPinned).toList();
+
+    // Sort by last message time (newest first)
+    pinned.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    unpinned.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+
+    return [...pinned, ...unpinned];
   }
 
-  void _startNewDm(BuildContext context) {
-    if (_currentUserId == null) return;
+  void _refreshChats() {
+    _setupChatStream();
+  }
 
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.clear();
+        _searchResults.clear();
+      }
+    });
+  }
+
+  void _performSearch(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults.clear();
+      });
+      return;
+    }
+
+    final results = _allChats.where((chat) {
+      final searchText = query.toLowerCase();
+
+      // Search in chat name
+      if (chat.name.toLowerCase().contains(searchText)) return true;
+
+      // Search in last message
+      if (chat.lastMessage.toLowerCase().contains(searchText)) return true;
+
+      // For DMs, search in cached user names
+      if (chat.type == ChatType.dm) {
+        final otherUserId = chat.participants
+            .firstWhere((id) => id != _currentUserId, orElse: () => '');
+        final cachedName = _userNameCache[otherUserId]?.toLowerCase() ?? '';
+        return cachedName.contains(searchText);
+      }
+
+      return false;
+    }).toList();
+
+    setState(() {
+      _searchResults = results;
+    });
+  }
+
+  void _togglePinChat(ChatItem chat) {
+    setState(() {
+      final index = _allChats.indexWhere((c) => c.id == chat.id);
+      if (index != -1) {
+        _allChats[index] = chat.copyWith(isPinned: !chat.isPinned);
+        _filteredChats = _sortAndFilterChats(_allChats);
+
+        // Update in Firestore
+        _firestore.collection('chats').doc(chat.id).update({
+          'isPinned': !chat.isPinned,
+        });
+
+        _saveChatsToCache(_allChats);
+      }
+    });
+  }
+
+  Future<void> _startNewChat(BuildContext context) async {
+    if (_currentUserId == null || _currentUserCourse == null) return;
+
+    // Only allow chatting with students in same course
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const UserSelectionScreen()),
-    ).then((uid) async {
-      final otherUid = uid as String?;
-      if (otherUid == null || otherUid == _currentUserId) return;
+      MaterialPageRoute(
+        builder: (_) => UserSelectionScreen(
+        ),
+      ),
+    ).then((selectedUserId) async {
+      if (selectedUserId == null || selectedUserId.isEmpty) return;
 
-      final chatId = _dmId(_currentUserId!, otherUid);
-      final ref = _firestore.collection('chats').doc(chatId);
+      // Create DM chat
+      final participants = [_currentUserId!, selectedUserId]..sort();
+      final chatId = participants.join('_');
 
-      final doc = await ref.get();
+      final chatRef = _firestore.collection('chats').doc(chatId);
+      final doc = await chatRef.get();
+
       if (!doc.exists) {
-        await ref.set({
-          'type': 'dm',
-          'participants': [_currentUserId, otherUid],
-          'lastMessage': "Chat created by $_currentUserName",
-          'lastMessageAt': FieldValue.serverTimestamp(),
+        await chatRef.set({
+          'type': ChatType.dm.name,
+          'participants': participants,
+          'lastMessage': 'Chat started',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'isPinned': false,
         });
       }
 
@@ -1274,173 +383,148 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with AutomaticKeepAlive
         MaterialPageRoute(
           builder: (_) => ChatScreen(
             chatId: chatId,
-            otherUserId: otherUid,
+            otherUserId: selectedUserId,
           ),
         ),
       );
     });
   }
-}
 
-class _StatusViewerDialog extends StatefulWidget {
-  // ... (keep your existing constructor and fields)
-  final Map<String, dynamic> status;
-  final String? mediaUrl;
-  final String content;
-  final bool isAdmin;
-  final int viewCount;
-  final int? reachLimit;
-  final VoidCallback onViewComplete;
-
-  const _StatusViewerDialog({
-    required this.status,
-    required this.mediaUrl,
-    required this.content,
-    required this.isAdmin,
-    required this.viewCount,
-    required this.reachLimit,
-    required this.onViewComplete,
-  });
-
-  @override
-  State<_StatusViewerDialog> createState() => __StatusViewerDialogState();
-}
-
-class __StatusViewerDialogState extends State<_StatusViewerDialog> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 5), // Standard 5s duration
-    )..forward().whenComplete(() {
-      widget.onViewComplete();
-      if (mounted) Navigator.of(context).pop(); // Auto-close
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildChatListItem(ChatItem chat) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final timeSent = (widget.status['createdAt'] as Timestamp?)?.toDate();
-    final timeString = timeSent != null ? "${timeSent.hour}:${timeSent.minute.toString().padLeft(2, '0')}" : "";
 
-    return Scaffold(
-      backgroundColor: Colors.black, // Immersive background
-      body: Stack(
-        children: [
-          // A. MEDIA LAYER
-          Center(
-            child: widget.mediaUrl != null
-                ? Image.network(
-              widget.mediaUrl!,
-              fit: BoxFit.contain,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return CircularProgressIndicator(color: colorScheme.primary);
-              },
-            )
-                : Container(
-              color: Colors.blueGrey.shade900, // Background for text-only status
-              alignment: Alignment.center,
-              padding: const EdgeInsets.all(30),
-              child: Text(
-                widget.content,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontFamily: 'sans-serif-light',
+    String displayName = chat.name;
+    String? subtitle = chat.lastMessage;
+    int? unreadCount = chat.unreadCount;
+
+    // For DMs, get the other user's name
+    if (chat.type == ChatType.dm) {
+      final otherUserId = chat.participants
+          .firstWhere((id) => id != _currentUserId, orElse: () => '');
+      displayName = _userNameCache[otherUserId] ?? 'Unknown User';
+    }
+
+    return Dismissible(
+      key: Key(chat.id),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        color: colorScheme.primary.withOpacity(0.1),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        child: Icon(
+          chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+          color: colorScheme.primary,
+        ),
+      ),
+      secondaryBackground: Container(
+        color: Colors.red.withOpacity(0.1),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.red),
+      ),
+      onDismissed: (direction) {
+        if (direction == DismissDirection.startToEnd) {
+          _togglePinChat(chat);
+        } else {
+          // Archive/delete chat (implement as needed)
+        }
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  chatId: chat.id,
+                  otherUserId: chat.type == ChatType.dm
+                      ? chat.participants.firstWhere((id) => id != _currentUserId, orElse: () => '')
+                      : null,
+                ),
+              ),
+            );
+          },
+          onLongPress: () {
+            _showChatOptions(context, chat);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.dividerColor.withOpacity(0.3),
+                  width: 0.5,
                 ),
               ),
             ),
-          ),
-
-          // B. CAPTION OVERLAY (Bottom Gradient)
-          if (widget.mediaUrl != null && widget.content.isNotEmpty)
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 40, 16, 40), // Safe area + gradient space
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black87, Colors.transparent],
-                  ),
-                ),
-                child: Text(
-                  widget.content,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ),
-            ),
-
-          // C. TOP CONTROLS (Progress + User Info)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 0, right: 0,
-            child: Column(
+            child: Row(
               children: [
-                // 1. Progress Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, child) {
-                        return LinearProgressIndicator(
-                          value: _controller.value,
-                          minHeight: 3,
-                          backgroundColor: Colors.grey.withOpacity(0.5),
-                          valueColor: const AlwaysStoppedAnimation(Colors.white),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                // Avatar
+                _buildChatAvatar(chat, colorScheme),
+                const SizedBox(width: 16),
 
-                // 2. Header Row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: Row(
+                // Chat info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: colorScheme.primary,
-                        child: Text(
-                          (widget.status['createdByName'] ?? 'A')[0].toUpperCase(),
-                          style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
                         children: [
-                          Text(
-                            widget.status['createdByName'] ?? 'Admin',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
+                          if (chat.isPinned)
+                            Icon(Icons.push_pin, size: 14, color: theme.disabledColor),
+                          const SizedBox(width: 8),
                           Text(
-                            timeString,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            _formatTime(chat.lastMessageTime),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.disabledColor,
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              subtitle,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.disabledColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (unreadCount != null && unreadCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                unreadCount.toString(),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -1449,28 +533,472 @@ class __StatusViewerDialogState extends State<_StatusViewerDialog> with SingleTi
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          // D. ADMIN METRICS (Optional)
-          if (widget.isAdmin)
-            Positioned(
-              bottom: 40,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Colors.black54,
-                child: Row(
-                  children: [
-                    const Icon(Icons.remove_red_eye, color: Colors.white70, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${widget.viewCount} views',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
+  Widget _buildChatAvatar(ChatItem chat, ColorScheme colorScheme) {
+    final isGroup = chat.type != ChatType.dm;
+
+    if (isGroup) {
+      return CircleAvatar(
+        radius: 24,
+        backgroundColor: _getChatColor(chat.type).withOpacity(0.1),
+        child: Icon(
+          _getChatIcon(chat.type),
+          color: _getChatColor(chat.type),
+          size: 24,
+        ),
+      );
+    } else {
+      // For DMs, show user avatar
+      final otherUserId = chat.participants
+          .firstWhere((id) => id != _currentUserId, orElse: () => '');
+      final userName = _userNameCache[otherUserId] ?? '';
+      final initials = userName.isNotEmpty
+          ? userName.substring(0, 1).toUpperCase()
+          : '?';
+
+      return CircleAvatar(
+        radius: 24,
+        backgroundColor: colorScheme.primary.withOpacity(0.1),
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: colorScheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+  }
+
+  Color _getChatColor(ChatType type) {
+    final theme = Theme.of(context);
+    switch (type) {
+      case ChatType.system:
+        return Colors.amber;
+      case ChatType.yearGroup:
+        return Colors.green;
+      case ChatType.courseGroup:
+        return Colors.blue;
+      case ChatType.group:
+        return Colors.purple;
+      case ChatType.dm:
+        return theme.colorScheme.primary;
+    }
+  }
+
+  IconData _getChatIcon(ChatType type) {
+    switch (type) {
+      case ChatType.system:
+        return Icons.campaign;
+      case ChatType.yearGroup:
+        return Icons.school;
+      case ChatType.courseGroup:
+        return Icons.group;
+      case ChatType.group:
+        return Icons.forum;
+      case ChatType.dm:
+        return Icons.person;
+    }
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(time.year, time.month, time.day);
+
+    if (messageDate == today) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday';
+    } else if (now.difference(time).inDays < 7) {
+      return _getWeekday(time.weekday);
+    } else {
+      return '${time.day}/${time.month}/${time.year.toString().substring(2)}';
+    }
+  }
+
+  String _getWeekday(int weekday) {
+    switch (weekday) {
+      case 1: return 'Mon';
+      case 2: return 'Tue';
+      case 3: return 'Wed';
+      case 4: return 'Thu';
+      case 5: return 'Fri';
+      case 6: return 'Sat';
+      case 7: return 'Sun';
+      default: return '';
+    }
+  }
+
+  void _showChatOptions(BuildContext context, ChatItem chat) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
+                title: Text(
+                  chat.isPinned ? 'Unpin chat' : 'Pin chat',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _togglePinChat(chat);
+                },
               ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none, color: Colors.grey),
+                title: Text(
+                  'Mute notifications',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Implement mute functionality
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.archive_outlined, color: Colors.grey),
+                title: Text(
+                  'Archive chat',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Implement archive functionality
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: Text(
+                  'Delete chat',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.red,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Implement delete functionality
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_isSearching) {
+      return AppBar(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _toggleSearch,
+        ),
+        title: TextField(
+          controller: _searchController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Search chats...',
+            border: InputBorder.none,
+            hintStyle: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.disabledColor,
+            ),
+          ),
+          style: theme.textTheme.bodyLarge,
+          onChanged: _performSearch,
+        ),
+        actions: [
+          if (_searchController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _searchController.clear();
+                _performSearch('');
+              },
             ),
         ],
+      );
+    }
+
+    return AppBar(
+      backgroundColor: colorScheme.surface,
+      foregroundColor: colorScheme.onSurface,
+      elevation: 0,
+      title: Text(
+        'Chats',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: _toggleSearch,
+        ),
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () {
+            _showSettingsMenu();
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showSettingsMenu() {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.light_mode),
+                title: const Text('Theme'),
+                trailing: DropdownButton<ThemeMode>(
+                  value: Theme.of(context).brightness == Brightness.dark
+                      ? ThemeMode.dark
+                      : ThemeMode.light,
+                  onChanged: (newMode) {
+                    // This would need to be connected to your ThemeManager
+                    Navigator.pop(context);
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: ThemeMode.light,
+                      child: Text('Light'),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.dark,
+                      child: Text('Dark'),
+                    ),
+                  ],
+                  underline: Container(),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications),
+                title: const Text('Notifications'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Navigate to notifications settings
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Help'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Show help
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final theme = Theme.of(context);
+
+    if (_currentUserId == null) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: AppLogoLoadingWidget(size: 80)),
+      );
+    }
+
+    final displayChats = _isSearching ? _searchResults : _filteredChats;
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          // Chats list
+          Expanded(
+            child: displayChats.isEmpty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 80,
+                    color: theme.disabledColor,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isSearching
+                        ? 'No chats found'
+                        : 'No chats yet',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.disabledColor,
+                    ),
+                  ),
+                  if (!_isSearching)
+                    TextButton(
+                      onPressed: () => _startNewChat(context),
+                      child: const Text('Start a new chat'),
+                    ),
+                ],
+              ),
+            )
+                : ListView.builder(
+              itemCount: displayChats.length,
+              itemBuilder: (context, index) {
+                return _buildChatListItem(displayChats[index]);
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'chat_screen_fab',
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        onPressed: () => _startNewChat(context),
+        child: const Icon(Icons.chat),
+      ),
+    );
+  }
+}
+
+// Chat data models
+enum ChatType {
+  dm,
+  group,
+  courseGroup,
+  yearGroup,
+  system;
+
+  String get name => toString().split('.').last;
+}
+
+class ChatItem {
+  final String id;
+  final ChatType type;
+  final String name;
+  final String lastMessage;
+  final DateTime lastMessageTime;
+  final List<String> participants;
+  final int? unreadCount;
+  final bool isPinned;
+  final Map<String, dynamic>? metadata;
+
+  ChatItem({
+    required this.id,
+    required this.type,
+    required this.name,
+    required this.lastMessage,
+    required this.lastMessageTime,
+    required this.participants,
+    this.unreadCount,
+    this.isPinned = false,
+    this.metadata,
+  });
+
+  factory ChatItem.fromFirestore(String id, Map<String, dynamic> data) {
+    return ChatItem(
+      id: id,
+      type: ChatType.values.firstWhere(
+            (e) => e.name == (data['type'] ?? 'dm'),
+        orElse: () => ChatType.dm,
+      ),
+      name: data['name'] ?? 'Chat',
+      lastMessage: data['lastMessage'] ?? '',
+      lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      participants: List<String>.from(data['participants'] ?? []),
+      unreadCount: data['unreadCount'] as int?,
+      isPinned: data['isPinned'] ?? false,
+      metadata: data['metadata'] as Map<String, dynamic>?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'type': type.name,
+      'name': name,
+      'lastMessage': lastMessage,
+      'lastMessageTime': lastMessageTime.toIso8601String(),
+      'participants': participants,
+      'unreadCount': unreadCount,
+      'isPinned': isPinned,
+      'metadata': metadata,
+    };
+  }
+
+  factory ChatItem.fromJson(Map<String, dynamic> json) {
+    return ChatItem(
+      id: json['id'],
+      type: ChatType.values.firstWhere(
+            (e) => e.name == json['type'],
+        orElse: () => ChatType.dm,
+      ),
+      name: json['name'],
+      lastMessage: json['lastMessage'],
+      lastMessageTime: DateTime.parse(json['lastMessageTime']),
+      participants: List<String>.from(json['participants']),
+      unreadCount: json['unreadCount'],
+      isPinned: json['isPinned'] ?? false,
+      metadata: json['metadata'],
+    );
+  }
+
+  ChatItem copyWith({
+    String? id,
+    ChatType? type,
+    String? name,
+    String? lastMessage,
+    DateTime? lastMessageTime,
+    List<String>? participants,
+    int? unreadCount,
+    bool? isPinned,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ChatItem(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      name: name ?? this.name,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      participants: participants ?? this.participants,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isPinned: isPinned ?? this.isPinned,
+      metadata: metadata ?? this.metadata,
     );
   }
 }

@@ -6,7 +6,7 @@ class ThemeProvider with ChangeNotifier {
   static const String _themeKey = 'user_selected_theme';
 
   // Start with a default theme
-  String _currentThemeName = 'Dark Hot Pink';
+  String _currentThemeName = 'Dark Owl Night';
   bool _isInitialized = false;
 
   ThemeProvider() {
@@ -17,9 +17,9 @@ class ThemeProvider with ChangeNotifier {
   ThemeData get themeData {
     if (!_isInitialized) {
       // Return default theme until saved value loads
-      return AppThemes.all['Dark Hot Pink']!;
+      return AppThemes.all['Dark Owl Night']!;
     }
-    return AppThemes.all[_currentThemeName] ?? AppThemes.all['Dark Hot Pink']!;
+    return AppThemes.all[_currentThemeName] ?? AppThemes.all['Dark Owl Night']!;
   }
 
   String get currentThemeName => _currentThemeName;
