@@ -1,14 +1,8 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-// Update these imports to match your project structure
-// import '../../core/constants/colors.dart'; // No longer needed
 import '../Profile/complete_profile.dart';
 import '../home/home_screen.dart';
 import 'forgot_password.dart';

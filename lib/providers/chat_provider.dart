@@ -1,4 +1,3 @@
-// lib/providers/chat_provider.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart'; // Ensure ChatMessage model is imported

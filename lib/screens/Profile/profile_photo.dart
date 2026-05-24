@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:io';
 import 'package:alma_mata/screens/Profile/personal_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

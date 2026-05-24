@@ -186,28 +186,28 @@
                     }
                   }
                 },
-                "SPAS": {
+                "SPS": {
                   "full_name": "School Of Physical Sciences",
                   "departments": {
-                  }
-                },
-                "SMS": {
-                  "full_name": "School Of Mathematical Sciences",
-                  "departments": {
-                    "Botany": {
+                    "STACS": {
                       "courses": {
-                        "Microbiology": {},
-                        "Biotechnology": {},
-                        "Biological Sciences": {}
+                        "": {},
+                        "": {},
+                        "": {}
                       }
                     },
-                    "Zoology": {
+                    "Physics": {
                       "courses": {
-                        "Genomic Sciences": {},
-                        "Applied Biology": {},
-                        "Zoology": {},
-                        "Environmental Sciences": {},
-                        "Fisheries Science": {}
+                        "": {},
+                        "": {},
+                        "": {}
+                      }
+                    },
+                    "Chemistry": {
+                      "courses": {
+                        " ": {},
+                        " ": {},
+                        " ": {}
                       }
                     }
                   }
@@ -346,19 +346,10 @@
             },
             "COANRE": {
               "schools" : {
-                "School of Agriculture and Environmental Sciences" : {},
-                "School of Natural Resources and Animal Science" : {},
-                "School of Food and Nutrition Science" : {}
               }
             },
             "COHES": {
-              "schools": {
-                "School of Nursing": {},
-                "School of Medicine": {},
-                "School of Pharmacy": {},
-                "School of Public Health": {},
-                "School of Biomedical Sciences": {}
-              }
+
             }
           }
         },
@@ -372,6 +363,9 @@
               },
               "departments": {},
               "courses": {}
+            },
+            "Data Science": {
+
             }
           }
         },
@@ -386,46 +380,6 @@
           }
         },
         "CBD": {
-          "colleges": {
-            "EPD": {
-              "full_name": "Entrepreneurship Procurement Department",
-              "schools": {},
-              "departments": {},
-              "courses": {}
-            }
-          }
-        },
-        "Kakamega": {
-          "colleges": {
-            "EPD": {
-              "full_name": "Entrepreneurship Procurement Department",
-              "schools": {},
-              "departments": {},
-              "courses": {}
-            }
-          }
-        },
-        "Kitale": {
-          "colleges": {
-            "EPD": {
-              "full_name": "Entrepreneurship Procurement Department",
-              "schools": {},
-              "departments": {},
-              "courses": {}
-            }
-          }
-        },
-        "Kisii": {
-          "colleges": {
-            "EPD": {
-              "full_name": "Entrepreneurship Procurement Department",
-              "schools": {},
-              "departments": {},
-              "courses": {}
-            }
-          }
-        },
-        "Eldoret": {
           "colleges": {
             "EPD": {
               "full_name": "Entrepreneurship Procurement Department",

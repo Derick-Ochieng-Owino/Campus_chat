@@ -1,12 +1,8 @@
-// lib/screens/onboarding/onboarding_slider.dart
-// ignore_for_file: deprecated_member_use
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingSlider extends StatefulWidget {
-  // Callback when the user finishes or skips the onboarding
   final VoidCallback onFinish;
 
   const OnboardingSlider({super.key, required this.onFinish});

@@ -77,7 +77,7 @@ class _MainContentState extends State<MainContent> {
     const NotesScreen(),
     const GroupsTab(),
     const AnnouncementScreen(),
-    const ProfileScreen(),
+    const StudentIdScreen(),
   ];
 
   @override
