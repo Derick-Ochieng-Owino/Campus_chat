@@ -295,23 +295,26 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _nicknameController;
+  late TextEditingController _firstNameController;
+  late TextEditingController _middleNameController;
+  late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.profile.fullName);
-    _nicknameController = TextEditingController(text: widget.profile.nickname ?? '');
+    _firstNameController = TextEditingController(text: widget.profile.firstName);
+    _middleNameController = TextEditingController(text: widget.profile.middleName);
+    _lastNameController = TextEditingController(text: widget.profile.lastName);
     _phoneController = TextEditingController(text: widget.profile.phoneNumber);
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _nicknameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -325,8 +328,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (user == null) return;
 
       final updatedFields = {
-        'full_name': _nameController.text.trim(),
-        'nickname': _nicknameController.text.trim(),
+        'first_name': _firstNameController.text.trim(),
+        'middle_name': _middleNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
         'phone_number': _phoneController.text.trim(),
         'updated_at': FieldValue.serverTimestamp(),
       };
@@ -366,17 +370,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             children: [
               TextFormField(
-                controller: _nameController,
+                controller: _firstNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Full Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
-                validator: (v) => (v == null || v.isEmpty) ? 'Name can\'t be empty' : null,
+                decoration: const InputDecoration(labelText: 'First Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
+                validator: (v) => (v == null || v.isEmpty) ? 'First name can\'t be empty' : null,
               ),
-              const SizedBox(height: 20),
               TextFormField(
-                controller: _nicknameController,
+                controller: _middleNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Nickname (Optional)', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.face_outlined, color: Colors.white60)),
+                decoration: const InputDecoration(labelText: 'Middle Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
+                validator: (v) => (v == null || v.isEmpty) ? 'Middle name can\'t be empty' : null,
               ),
+              TextFormField(
+                controller: _lastNameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Last Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
+                validator: (v) => (v == null || v.isEmpty) ? 'Last name can\'t be empty' : null,
+              ),
+              // const SizedBox(height: 20),
+              // TextFormField(
+              //   controller: _nicknameController,
+              //   style: const TextStyle(color: Colors.white),
+              //   decoration: const InputDecoration(labelText: 'Nickname (Optional)', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.face_outlined, color: Colors.white60)),
+              // ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _phoneController,

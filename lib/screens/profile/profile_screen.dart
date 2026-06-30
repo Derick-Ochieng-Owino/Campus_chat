@@ -194,10 +194,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _buildAuxRow(theme, 'Current Account Standing', 'Year ${profile.year}, Semester ${profile.semester}'),
                       Divider(color: theme.dividerTheme.color, height: 24),
                       _buildAuxRow(theme, 'Assigned Campus Domain', profile.campus),
-                      if (profile.nickname != null && profile.nickname!.isNotEmpty) ...[
-                        Divider(color: theme.dividerTheme.color, height: 24),
-                        _buildAuxRow(theme, 'Internal App Profile Tag', profile.nickname!),
-                      ]
+                      // if (profile.nickname != null && profile.nickname!.isNotEmpty) ...[
+                      //   Divider(color: theme.dividerTheme.color, height: 24),
+                      //   _buildAuxRow(theme, 'Internal App Profile Tag', profile.nickname!),
+                      // ]
                     ],
                   ),
                 ),
@@ -315,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           Text(
-                            profile.fullName,
+                            profile.firstName,
                             style: const TextStyle(color: darkTextColor, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.2),
                           ),
                           const SizedBox(height: 10),

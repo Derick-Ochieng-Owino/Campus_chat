@@ -1,10 +1,9 @@
-// ignore_for_file: deprecated_member_use
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import 'signin_screen.dart';
-import 'ghost.dart'; // Preserved original ghost asset dependency
+import 'ghost.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -53,12 +52,32 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final emailInput = _emailController.text.trim().toLowerCase();
 
     setState(() => _isLoading = true);
 
     try {
-      // Execute transmission via unified logic layer
-      await _authService.sendPasswordReset(_emailController.text.trim());
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: emailInput)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No account found with this student email.'),
+            backgroundColor: colorScheme.error,
+          ),
+        );
+        return; // Stop execution early
+      }
+
+      // 2. Fall-through path: Account confirmed! Safe to dispatch the recovery email link
+      await _authService.sendPasswordReset(emailInput);
 
       if (!mounted) return;
 
@@ -69,7 +88,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text("If an account exists, a password reset link has been sent! Check your inbox."),
+          content: const Text("A password reset link has been sent! Check your student inbox."),
           backgroundColor: colorScheme.primary,
           duration: const Duration(seconds: 5),
         ),
@@ -80,9 +99,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
       String errorMessage;
       switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No account found with this student email.';
-          break;
         case 'invalid-email':
           errorMessage = 'The email address format is invalid.';
           break;

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_profile_model.dart';
+import '../auth/signin_screen.dart';
 import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -39,7 +40,171 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildPreferenceGroup({required String title, required List<Widget> children}) {
+  // --- Handlers for Danger Zone Actions ---
+  void _handleLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to log out of your account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await FirebaseAuth.instance.signOut();
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+              (route) => false,
+        );
+      }
+    }
+  }
+
+  void _showDeleteAccountVerificationDialog() {
+    final formKey = GlobalKey<FormState>();
+    final emailController = TextEditingController();
+    final regNumberController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Delete Account'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'This action is permanent and cannot be undone. All your profile data will be completely deleted.',
+                    style: TextStyle(fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'To confirm, please verify your credentials:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Verify Email Address',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    validator: (value) {
+                      final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Email is required';
+                      }
+                      if (value.trim().toLowerCase() != currentUserEmail?.toLowerCase()) {
+                        return 'Email does not match your account';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: regNumberController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Verify Registration Number',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                    validator: (value) {
+                      final currentRegNum = _profile?.regNumber;
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Registration number is required';
+                      }
+                      if (value.trim().toUpperCase() != currentRegNum?.toUpperCase()) {
+                        return 'Registration number does not match';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+                elevation: 0,
+              ),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  // Close verification dialog
+                  Navigator.pop(context);
+                  await _executeAccountDeletion();
+                }
+              },
+              child: const Text('Permanently Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _executeAccountDeletion() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // 1. Delete Firestore user record
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+
+        // 2. Delete Firebase Authentication user instance
+        await user.delete();
+
+        // Note: If user hasn't logged in recently, Firebase might throw a 'requires-recent-login' exception.
+        // If it throws, you would ideally catch it and prompt them to re-authenticate first.
+      }
+    } on FirebaseException catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'An error occurred during account deletion.')),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete account. Please try logging in again.')),
+      );
+    }
+  }
+
+  Widget _buildPreferenceGroup({required String title, required List<Widget> children, Color? titleColor, Color? cardColor}) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Text(
             title,
             style: TextStyle(
-              color: theme.colorScheme.primary,
+              color: titleColor ?? theme.colorScheme.primary,
               fontWeight: FontWeight.bold,
               fontSize: 12,
               letterSpacing: 0.5,
@@ -58,7 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         Card(
           elevation: 0,
-          color: theme.colorScheme.surfaceContainerLow,
+          color: cardColor ?? theme.colorScheme.surfaceContainerLow,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Column(children: children),
         ),
@@ -114,7 +279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _profile?.fullName ?? 'Alma Mater Student',
+                          _profile?.firstName ?? 'Alma Mater Student',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onPrimaryContainer,
@@ -199,6 +364,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
+
+          // --- Danger Zone Block ---
+          _buildPreferenceGroup(
+            title: 'DANGER ZONE',
+            titleColor: theme.colorScheme.error,
+            cardColor: theme.colorScheme.errorContainer.withValues(alpha: 0.2),
+            children: [
+              ListTile(
+                leading: Icon(Icons.logout_rounded, color: theme.colorScheme.error),
+                title: Text('Log Out', style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w500)),
+                onTap: _handleLogout,
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: Icon(Icons.delete_forever_rounded, color: theme.colorScheme.error),
+                title: Text('Delete Account', style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w500)),
+                onTap: _showDeleteAccountVerificationDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );

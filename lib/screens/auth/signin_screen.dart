@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -35,8 +33,11 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = false; // Persistent Remember Me checkbox token tracker
   int _activeFieldIndex = 0; // 0 = Email, 1 = Password
 
+  // --- Rate Limiting Verification Cooldown Parameters ---
+  int _loginCooldownSeconds = 0;
+  Timer? _loginCooldownTimer;
+
   final String _requiredDomain = 'students.jkuat.ac.ke';
-  Timer? _verificationTimer;
   dynamic _universityData;
 
   @override
@@ -56,11 +57,11 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _verificationTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
+    _loginCooldownTimer?.cancel(); // Kill active ticker background footprints cleanly
     super.dispose();
   }
 
@@ -116,6 +117,114 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // --- Secure Authentication Rate Limiter ---
+  void _startLoginCooldown() {
+    setState(() => _loginCooldownSeconds = 60);
+    _loginCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_loginCooldownSeconds == 0) {
+        _loginCooldownTimer?.cancel();
+      } else {
+        setState(() => _loginCooldownSeconds--);
+      }
+    });
+  }
+
+  /// Displays the secondary structural verification intercept sheet
+  void _showLoginVerificationModal(User user) {
+    _startLoginCooldown();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bContext) {
+        final theme = Theme.of(context);
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Icon(Icons.mark_email_unread_rounded, size: 64, color: theme.colorScheme.primary),
+                  const SizedBox(height: 16),
+                  Text('Email Not Verified Yet', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Your account setup exists, but your institutional student email has not been activated yet.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    user.email ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Rate-limited Link Resend Option
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.send_rounded),
+                      label: Text(_loginCooldownSeconds > 0
+                          ? 'Resend Link ($_loginCooldownSeconds s)'
+                          : 'Resend Verification Email'
+                      ),
+                      onPressed: _loginCooldownSeconds > 0 ? null : () async {
+                        try {
+                          await user.sendEmailVerification();
+                          _startLoginCooldown();
+                          setModalState(() {}); // Force update countdown inside dialog canvas
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('A fresh verification link has been sent to your inbox.')),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Clean abort navigation option
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () async {
+                        _loginCooldownTimer?.cancel();
+                        await FirebaseAuth.instance.signOut(); // Cleanly detach local memory footprint token
+                        if (!mounted) return;
+                        Navigator.pop(bContext);
+                      },
+                      child: const Text('Back to Sign In'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) async {
+      _loginCooldownTimer?.cancel();
+      // Safety Intercept Guard: Ensure unverified credentials don't bypass auth rules if sheets dismiss weirdly
+      if (FirebaseAuth.instance.currentUser != null && !FirebaseAuth.instance.currentUser!.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+      }
+    });
+  }
+
   Future<void> _signUpWithApple() async {
     setState(() => _isLoading = true);
     // Fires native platform identity tokens up to auth service wrapper architecture...
@@ -128,7 +237,6 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
 
     try {
-      // 1. Force explicit institutional hosted domain constraints
       final googleSignIn = GoogleSignIn(hostedDomain: _requiredDomain);
       final googleUser = await googleSignIn.signIn();
 
@@ -137,7 +245,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // 2. Client-side security lock safeguard validation
       if (!googleUser.email.toLowerCase().endsWith(_requiredDomain)) {
         await googleSignIn.signOut();
         if (!mounted) return;
@@ -151,19 +258,16 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // 3. Acquire OAuth sign-in credentials from Google session
       final googleAuth = await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // 4. Fire authentication token up to Firebase Auth core
       UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
       User? user = userCredential.user;
 
       if (user != null) {
-        // 5. Look for an existing profile record inside the database collection
         final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
         if (!mounted) return;
@@ -172,7 +276,6 @@ class _LoginPageState extends State<LoginPage> {
           final userData = userDoc.data();
           final bool isProfileComplete = userData?['profile_completed'] ?? false;
 
-          // If the profile is complete, bypass the setup sliders and go straight home
           if (isProfileComplete) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text("Welcome back! Login Successful."), backgroundColor: theme.colorScheme.primary),
@@ -182,13 +285,11 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
 
-        // 6. Split display strings into distinct fields for new sign-ups
         final String displayName = user.displayName ?? "";
         final List<String> nameParts = displayName.split(" ");
         final String firstName = nameParts.isNotEmpty ? nameParts.first : "";
         final String lastName = nameParts.length > 1 ? nameParts.skip(1).join(" ") : "";
 
-        // 7. Initialize user metadata base structures inside Firestore
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'first_name': firstName,
           'last_name': lastName,
@@ -203,7 +304,6 @@ class _LoginPageState extends State<LoginPage> {
 
         if (!mounted) return;
 
-        // Force remaining profile updates on first sign-up
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => CompleteProfilePage(universityData: _universityData)),
@@ -246,9 +346,10 @@ class _LoginPageState extends State<LoginPage> {
         await user.reload();
         user = FirebaseAuth.instance.currentUser ?? user;
 
+        // 🎯 THE CRITICAL SECURITY INTERCEPT STEP:
         if (!user.emailVerified) {
-          await _showEmailNotVerifiedDialog(user);
-          if (mounted) setState(() => _isLoading = false);
+          setState(() => _isLoading = false);
+          _showLoginVerificationModal(user); // Hold execution and display safety sheet
           return;
         }
       }
@@ -291,73 +392,6 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _showEmailNotVerifiedDialog(User user) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Email Not Verified'),
-          content: const Text('Please verify your email address before logging in. Check your student inbox for the verification email link.'),
-          actions: <Widget>[
-            TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(dialogContext).pop()),
-            TextButton(
-              child: const Text('Resend Email'),
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await _sendVerificationEmail(user);
-                _startEmailVerificationCheck(user);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _sendVerificationEmail(User user) async {
-    final theme = Theme.of(context);
-    try {
-      await user.sendEmailVerification();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Verification email sent! Please check your portal inbox.'), backgroundColor: theme.colorScheme.primary));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send verification email: $e'), backgroundColor: theme.colorScheme.error));
-    }
-  }
-
-  void _startEmailVerificationCheck(User user) {
-    _verificationTimer?.cancel();
-    int checkCount = 0;
-    const maxChecks = 12;
-
-    _verificationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      checkCount++;
-      if (checkCount >= maxChecks) {
-        timer.cancel();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Verification check timeout. Please sign in again once verified.'), backgroundColor: Theme.of(context).colorScheme.error));
-        }
-        return;
-      }
-      try {
-        await user.reload();
-        final updatedUser = FirebaseAuth.instance.currentUser;
-        if (updatedUser != null && updatedUser.emailVerified) {
-          timer.cancel();
-          if (mounted) {
-            await updatedUser.getIdToken(true);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Email verified! You can now log in securely.'), backgroundColor: Theme.of(context).colorScheme.primary));
-          }
-        }
-      } catch (e) {
-        debugPrint("Silent polling loop trace: $e");
-      }
-    });
   }
 
   @override
@@ -515,18 +549,6 @@ class _LoginPageState extends State<LoginPage> {
                                   TextButton(
                                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage())),
                                     child: Text('Forgot Password?', style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary)),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      final user = FirebaseAuth.instance.currentUser;
-                                      if (user != null && !user.emailVerified) {
-                                        await _sendVerificationEmail(user);
-                                      } else {
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Please log in first or check if you\'re already verified.'), backgroundColor: theme.colorScheme.error));
-                                      }
-                                    },
-                                    child: Text('Resend Verification Email', style: theme.textTheme.bodyMedium!.copyWith(color: colorScheme.primary)),
                                   ),
                                   Wrap(
                                     alignment: WrapAlignment.center,
