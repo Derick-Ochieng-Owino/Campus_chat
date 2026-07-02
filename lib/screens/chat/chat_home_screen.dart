@@ -12,7 +12,10 @@ import 'chat_screen.dart';
 const String _CHAT_CACHE_KEY = 'cached_chats_v2';
 
 class ChatHomeScreen extends StatefulWidget {
-  const ChatHomeScreen({super.key});
+  final Function(String chatId, String chatName, String? otherUserId)?
+  onChatSelected;
+
+  const ChatHomeScreen({this.onChatSelected, super.key});
 
   @override
   State<ChatHomeScreen> createState() => _ChatHomeScreenState();
@@ -89,7 +92,8 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       if (doc.exists) {
         final data = doc.data()!;
         setState(() {
-          _currentUserName = '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
+          _currentUserName =
+              '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
           if (_currentUserName!.isEmpty) _currentUserName = 'User';
           _currentUserCourse = data['course'];
           _currentYear = data['year'];
@@ -107,7 +111,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
     if (cachedJson != null) {
       try {
         final List<dynamic> list = jsonDecode(cachedJson);
-        final cachedChats = list.map((item) => ChatItem.fromJson(item)).toList();
+        final cachedChats = list
+            .map((item) => ChatItem.fromJson(item))
+            .toList();
         setState(() {
           _allChats = cachedChats;
           _filteredChats = _sortAndFilterChats(cachedChats);
@@ -128,15 +134,19 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
     if (_currentUserId == null) return;
     _chatSubscription?.cancel();
 
-    final query = _firestore.collection('chats')
+    final query = _firestore
+        .collection('chats')
         .where('participants', arrayContains: _currentUserId)
         .orderBy('lastMessageTime', descending: true);
 
-    _chatSubscription = query.snapshots().listen((snapshot) {
-      _processChatUpdates(snapshot.docs);
-    }, onError: (error) {
-      debugPrint('Chat stream error: $error');
-    });
+    _chatSubscription = query.snapshots().listen(
+      (snapshot) {
+        _processChatUpdates(snapshot.docs);
+      },
+      onError: (error) {
+        debugPrint('Chat stream error: $error');
+      },
+    );
   }
 
   void _processChatUpdates(List<QueryDocumentSnapshot> docs) {
@@ -148,16 +158,21 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       updatedChats.add(chat);
 
       if (chat.type == ChatType.dm) {
-        final otherUserId = chat.participants
-            .firstWhere((id) => id != _currentUserId, orElse: () => '');
-        if (otherUserId.isNotEmpty && !_userNameCache.containsKey(otherUserId)) {
+        final otherUserId = chat.participants.firstWhere(
+          (id) => id != _currentUserId,
+          orElse: () => '',
+        );
+        if (otherUserId.isNotEmpty &&
+            !_userNameCache.containsKey(otherUserId)) {
           _fetchUserData(otherUserId);
         }
       }
     }
 
     final existingChatIds = updatedChats.map((c) => c.id).toSet();
-    final preservedChats = _allChats.where((c) => !existingChatIds.contains(c.id)).toList();
+    final preservedChats = _allChats
+        .where((c) => !existingChatIds.contains(c.id))
+        .toList();
 
     setState(() {
       _allChats = [...updatedChats, ...preservedChats];
@@ -248,7 +263,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
           'isPinned': isPinned,
         });
       } else {
-        final participants = List<String>.from(doc.data()?['participants'] ?? []);
+        final participants = List<String>.from(
+          doc.data()?['participants'] ?? [],
+        );
         if (!participants.contains(_currentUserId)) {
           await chatRef.update({
             'participants': FieldValue.arrayUnion([_currentUserId]),
@@ -295,8 +312,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       if (chat.lastMessage.toLowerCase().contains(searchText)) return true;
 
       if (chat.type == ChatType.dm) {
-        final otherUserId = chat.participants
-            .firstWhere((id) => id != _currentUserId, orElse: () => '');
+        final otherUserId = chat.participants.firstWhere(
+          (id) => id != _currentUserId,
+          orElse: () => '',
+        );
         final cachedName = _userNameCache[otherUserId]?.toLowerCase() ?? '';
         return cachedName.contains(searchText);
       }
@@ -350,10 +369,8 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            chatId: chatId,
-            otherUserId: selectedUserId,
-          ),
+          builder: (_) =>
+              ChatScreen(chatId: chatId, otherUserId: selectedUserId),
         ),
       );
     });
@@ -377,8 +394,13 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
 
     // Filter by tab
     final filteredByTab = displayChats.where((chat) {
-      if (_selectedTab == 0) return chat.type != ChatType.system && chat.type != ChatType.yearGroup && chat.type != ChatType.courseGroup;
-      return chat.type == ChatType.system || chat.type == ChatType.yearGroup || chat.type == ChatType.courseGroup;
+      if (_selectedTab == 0)
+        return chat.type != ChatType.system &&
+            chat.type != ChatType.yearGroup &&
+            chat.type != ChatType.courseGroup;
+      return chat.type == ChatType.system ||
+          chat.type == ChatType.yearGroup ||
+          chat.type == ChatType.courseGroup;
     }).toList();
 
     return Scaffold(
@@ -393,11 +415,15 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
             child: filteredByTab.isEmpty
                 ? _buildEmptyState(theme)
                 : ListView.builder(
-              itemCount: filteredByTab.length,
-              itemBuilder: (context, index) {
-                return _buildWhatsAppChatItem(filteredByTab[index], theme, colorScheme);
-              },
-            ),
+                    itemCount: filteredByTab.length,
+                    itemBuilder: (context, index) {
+                      return _buildWhatsAppChatItem(
+                        filteredByTab[index],
+                        theme,
+                        colorScheme,
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -406,7 +432,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   }
 
   // ✅ WHATSAPP-STYLE APP BAR
-  PreferredSizeWidget _buildWhatsAppAppBar(ThemeData theme, ColorScheme colorScheme) {
+  PreferredSizeWidget _buildWhatsAppAppBar(
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     if (_isSearching) {
       return AppBar(
         backgroundColor: colorScheme.surface,
@@ -421,7 +450,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
           decoration: InputDecoration(
             hintText: 'Search chats...',
             border: InputBorder.none,
-            hintStyle: theme.textTheme.bodyLarge?.copyWith(color: theme.disabledColor),
+            hintStyle: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.disabledColor,
+            ),
           ),
           style: theme.textTheme.bodyLarge,
           onChanged: _performSearch,
@@ -451,10 +482,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.search),
-          onPressed: _toggleSearch,
-        ),
+        IconButton(icon: const Icon(Icons.search), onPressed: _toggleSearch),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
@@ -489,7 +517,14 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
             context: context,
             label: 'Chats',
             index: 0,
-            count: _allChats.where((c) => c.type != ChatType.system && c.type != ChatType.yearGroup && c.type != ChatType.courseGroup).length,
+            count: _allChats
+                .where(
+                  (c) =>
+                      c.type != ChatType.system &&
+                      c.type != ChatType.yearGroup &&
+                      c.type != ChatType.courseGroup,
+                )
+                .length,
             theme: theme,
             colorScheme: colorScheme,
           ),
@@ -497,7 +532,14 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
             context: context,
             label: 'Groups',
             index: 1,
-            count: _allChats.where((c) => c.type == ChatType.system || c.type == ChatType.yearGroup || c.type == ChatType.courseGroup).length,
+            count: _allChats
+                .where(
+                  (c) =>
+                      c.type == ChatType.system ||
+                      c.type == ChatType.yearGroup ||
+                      c.type == ChatType.courseGroup,
+                )
+                .length,
             theme: theme,
             colorScheme: colorScheme,
           ),
@@ -536,13 +578,18 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
                 label,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.6),
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
               if (count > 0) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -565,31 +612,56 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   }
 
   // ✅ WHATSAPP-STYLE CHAT ITEM
-  Widget _buildWhatsAppChatItem(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildWhatsAppChatItem(
+    ChatItem chat,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     String displayName = chat.name;
     String? subtitle = chat.lastMessage;
     int? unreadCount = chat.unreadCount;
     bool isOnline = false; // You can implement online status
 
     if (chat.type == ChatType.dm) {
-      final otherUserId = chat.participants
-          .firstWhere((id) => id != _currentUserId, orElse: () => '');
+      final otherUserId = chat.participants.firstWhere(
+        (id) => id != _currentUserId,
+        orElse: () => '',
+      );
       displayName = _userNameCache[otherUserId] ?? 'Unknown User';
     }
 
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChatScreen(
-              chatId: chat.id,
-              otherUserId: chat.type == ChatType.dm
-                  ? chat.participants.firstWhere((id) => id != _currentUserId, orElse: () => '')
+        final parentWidth = MediaQuery.of(context).size.width;
+        if (parentWidth >= 800) {
+          if (widget.onChatSelected != null) {
+            widget.onChatSelected!(
+              chat.id,
+              displayName,
+              chat.type == ChatType.dm
+                  ? chat.participants.firstWhere(
+                      (id) => id != _currentUserId,
+                      orElse: () => '',
+                    )
                   : null,
+            );
+          }
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                chatId: chat.id,
+                otherUserId: chat.type == ChatType.dm
+                    ? chat.participants.firstWhere(
+                        (id) => id != _currentUserId,
+                        orElse: () => '',
+                      )
+                    : null,
+              ),
             ),
-          ),
-        );
+          );
+        }
       },
       onLongPress: () => _showChatOptions(chat, theme, colorScheme),
       child: Container(
@@ -638,7 +710,11 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
                   Row(
                     children: [
                       if (chat.isPinned)
-                        Icon(Icons.push_pin, size: 12, color: theme.disabledColor),
+                        Icon(
+                          Icons.push_pin,
+                          size: 12,
+                          color: theme.disabledColor,
+                        ),
                       if (chat.isPinned) const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -687,7 +763,11 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   }
 
   // ✅ WHATSAPP-STYLE AVATAR
-  Widget _buildWhatsAppAvatar(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildWhatsAppAvatar(
+    ChatItem chat,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     final isGroup = chat.type != ChatType.dm;
 
     if (isGroup) {
@@ -702,8 +782,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       );
     }
 
-    final otherUserId = chat.participants
-        .firstWhere((id) => id != _currentUserId, orElse: () => '');
+    final otherUserId = chat.participants.firstWhere(
+      (id) => id != _currentUserId,
+      orElse: () => '',
+    );
     final userName = _userNameCache[otherUserId] ?? '';
     final photoUrl = _userPhotoCache[otherUserId];
     final initials = userName.isNotEmpty
@@ -718,13 +800,13 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
           : null,
       child: photoUrl == null || photoUrl.isEmpty
           ? Text(
-        initials,
-        style: TextStyle(
-          color: colorScheme.primary,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      )
+              initials,
+              style: TextStyle(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            )
           : null,
     );
   }
@@ -747,7 +829,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            _selectedTab == 0 ? Icons.chat_bubble_outline : Icons.group_outlined,
+            _selectedTab == 0
+                ? Icons.chat_bubble_outline
+                : Icons.group_outlined,
             size: 64,
             color: theme.disabledColor,
           ),
@@ -770,7 +854,11 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   }
 
   // ✅ CHAT OPTIONS BOTTOM SHEET
-  void _showChatOptions(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
+  void _showChatOptions(
+    ChatItem chat,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -793,7 +881,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.notifications_none, color: Colors.grey),
+                leading: const Icon(
+                  Icons.notifications_none,
+                  color: Colors.grey,
+                ),
                 title: const Text('Mute notifications'),
                 onTap: () => Navigator.pop(context),
               ),
@@ -818,21 +909,31 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   // ✅ UTILITY METHODS
   Color _getChatColor(ChatType type) {
     switch (type) {
-      case ChatType.system: return Colors.amber;
-      case ChatType.yearGroup: return Colors.green;
-      case ChatType.courseGroup: return Colors.blue;
-      case ChatType.group: return Colors.purple;
-      case ChatType.dm: return Theme.of(context).colorScheme.primary;
+      case ChatType.system:
+        return Colors.amber;
+      case ChatType.yearGroup:
+        return Colors.green;
+      case ChatType.courseGroup:
+        return Colors.blue;
+      case ChatType.group:
+        return Colors.purple;
+      case ChatType.dm:
+        return Theme.of(context).colorScheme.primary;
     }
   }
 
   IconData _getChatIcon(ChatType type) {
     switch (type) {
-      case ChatType.system: return Icons.campaign;
-      case ChatType.yearGroup: return Icons.school;
-      case ChatType.courseGroup: return Icons.group;
-      case ChatType.group: return Icons.forum;
-      case ChatType.dm: return Icons.person;
+      case ChatType.system:
+        return Icons.campaign;
+      case ChatType.yearGroup:
+        return Icons.school;
+      case ChatType.courseGroup:
+        return Icons.group;
+      case ChatType.group:
+        return Icons.forum;
+      case ChatType.dm:
+        return Icons.person;
     }
   }
 
@@ -855,14 +956,22 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
 
   String _getWeekday(int weekday) {
     switch (weekday) {
-      case 1: return 'Mon';
-      case 2: return 'Tue';
-      case 3: return 'Wed';
-      case 4: return 'Thu';
-      case 5: return 'Fri';
-      case 6: return 'Sat';
-      case 7: return 'Sun';
-      default: return '';
+      case 1:
+        return 'Mon';
+      case 2:
+        return 'Tue';
+      case 3:
+        return 'Wed';
+      case 4:
+        return 'Thu';
+      case 5:
+        return 'Fri';
+      case 6:
+        return 'Sat';
+      case 7:
+        return 'Sun';
+      default:
+        return '';
     }
   }
 }
@@ -905,12 +1014,13 @@ class ChatItem {
     return ChatItem(
       id: id,
       type: ChatType.values.firstWhere(
-            (e) => e.name == (data['type'] ?? 'dm'),
+        (e) => e.name == (data['type'] ?? 'dm'),
         orElse: () => ChatType.dm,
       ),
       name: data['name'] ?? 'Chat',
       lastMessage: data['lastMessage'] ?? '',
-      lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageTime:
+          (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       participants: List<String>.from(data['participants'] ?? []),
       unreadCount: data['unreadCount'] as int?,
       isPinned: data['isPinned'] ?? false,
@@ -936,7 +1046,7 @@ class ChatItem {
     return ChatItem(
       id: json['id'],
       type: ChatType.values.firstWhere(
-            (e) => e.name == json['type'],
+        (e) => e.name == json['type'],
         orElse: () => ChatType.dm,
       ),
       name: json['name'],
