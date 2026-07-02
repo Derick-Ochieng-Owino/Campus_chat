@@ -304,8 +304,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _firstNameController = TextEditingController(text: widget.profile.firstName);
-    _middleNameController = TextEditingController(text: widget.profile.middleName);
+    _firstNameController = TextEditingController(
+      text: widget.profile.firstName,
+    );
+    _middleNameController = TextEditingController(
+      text: widget.profile.middleName,
+    );
     _lastNameController = TextEditingController(text: widget.profile.lastName);
     _phoneController = TextEditingController(text: widget.profile.phoneNumber);
   }
@@ -336,8 +340,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       };
 
       final batch = FirebaseFirestore.instance.batch();
-      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final studentRef = FirebaseFirestore.instance.collection('university_students').doc(user.uid);
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final studentRef = FirebaseFirestore.instance
+          .collection('university_students')
+          .doc(user.uid);
 
       batch.set(userRef, updatedFields, SetOptions(merge: true));
       batch.set(studentRef, updatedFields, SetOptions(merge: true));
@@ -348,21 +356,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating records: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('Error updating records: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } finally {
-    if (mounted) setState(() => _isSaving = false);
-  }
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     const backgroundColor = Color(0xFF0F0F12);
-    //const cardColor = Color(0xFF18181C);
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(backgroundColor: backgroundColor, elevation: 0, title: const Text('Edit Account Info', style: TextStyle(color: Colors.white, fontSize: 16)), centerTitle: true),
+      appBar: AppBar(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        title: const Text(
+          'Edit Account Info',
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -372,47 +390,97 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               TextFormField(
                 controller: _firstNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'First Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
-                validator: (v) => (v == null || v.isEmpty) ? 'First name can\'t be empty' : null,
+                decoration: const InputDecoration(
+                  labelText: 'First Name',
+                  labelStyle: TextStyle(color: Colors.white60),
+                  prefixIcon: Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white60,
+                  ),
+                ),
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'First name can\'t be empty'
+                    : null,
               ),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _middleNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Middle Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
-                validator: (v) => (v == null || v.isEmpty) ? 'Middle name can\'t be empty' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Middle Name',
+                  labelStyle: TextStyle(color: Colors.white60),
+                  prefixIcon: Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white60,
+                  ),
+                ),
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'Middle name can\'t be empty'
+                    : null,
               ),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _lastNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Last Name', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.person_outline_rounded, color: Colors.white60)),
-                validator: (v) => (v == null || v.isEmpty) ? 'Last name can\'t be empty' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Last Name',
+                  labelStyle: TextStyle(color: Colors.white60),
+                  prefixIcon: Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white60,
+                  ),
+                ),
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'Last name can\'t be empty'
+                    : null,
               ),
-              // const SizedBox(height: 20),
-              // TextFormField(
-              //   controller: _nicknameController,
-              //   style: const TextStyle(color: Colors.white),
-              //   decoration: const InputDecoration(labelText: 'Nickname (Optional)', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.face_outlined, color: Colors.white60)),
-              // ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _phoneController,
                 style: const TextStyle(color: Colors.white),
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone Number', labelStyle: TextStyle(color: Colors.white60), prefixIcon: Icon(Icons.phone_android_rounded, color: Colors.white60)),
-                validator: (v) => (v != null && v.isNotEmpty && !RegExp(r'^\+?[0-9]{7,15}$').hasMatch(v)) ? 'Invalid phone format' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  labelStyle: TextStyle(color: Colors.white60),
+                  prefixIcon: Icon(
+                    Icons.phone_android_rounded,
+                    color: Colors.white60,
+                  ),
+                ),
+                validator: (v) =>
+                    (v != null &&
+                        v.isNotEmpty &&
+                        !RegExp(r'^\+?[0-9]{7,15}$').hasMatch(v))
+                    ? 'Invalid phone format'
+                    : null,
               ),
               const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: _isSaving
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF6366F1),
+                        ),
+                      )
                     : ElevatedButton(
-                  onPressed: _persistProfileChanges,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text('SAVE ALTERATIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
-              )
+                        onPressed: _persistProfileChanges,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'SAVE ALTERATIONS',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+              ),
             ],
           ),
         ),

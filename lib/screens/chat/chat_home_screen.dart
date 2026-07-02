@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,7 +32,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   late String _currentYear;
   String? _currentSemester;
 
-  // Chat data
   List<ChatItem> _allChats = [];
   List<ChatItem> _filteredChats = [];
   StreamSubscription? _chatSubscription;
@@ -46,6 +43,10 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
 
   // User cache
   final Map<String, String> _userNameCache = {};
+  final Map<String, String> _userPhotoCache = {};
+
+  // Tab selection
+  int _selectedTab = 0; // 0: Chats, 1: Groups
 
   @override
   void initState() {
@@ -79,26 +80,17 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   Future<void> _loadUserData() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     _currentUserId = user.uid;
 
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
-
-      // 🛠️ CRITICAL FIX: Guard against async race conditions.
-      // If the user navigated away/pressed back while waiting for Firestore, abort.
       if (!mounted) return;
 
       if (doc.exists) {
         final data = doc.data()!;
         setState(() {
-          // Also synchronized to check for your registration fields ('first_name' / 'last_name')
-          _currentUserName = data['name'] ??
-              data['nickname'] ??
-              '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
-
+          _currentUserName = '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
           if (_currentUserName!.isEmpty) _currentUserName = 'User';
-
           _currentUserCourse = data['course'];
           _currentYear = data['year'];
           _currentSemester = data['semester'];
@@ -112,7 +104,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   Future<void> _loadCachedChats() async {
     final prefs = await SharedPreferences.getInstance();
     final cachedJson = prefs.getString(_CHAT_CACHE_KEY);
-
     if (cachedJson != null) {
       try {
         final List<dynamic> list = jsonDecode(cachedJson);
@@ -135,10 +126,8 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
 
   void _setupChatStream() {
     if (_currentUserId == null) return;
-
     _chatSubscription?.cancel();
 
-    // Query for chats where user is a participant
     final query = _firestore.collection('chats')
         .where('participants', arrayContains: _currentUserId)
         .orderBy('lastMessageTime', descending: true);
@@ -158,17 +147,15 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       final chat = ChatItem.fromFirestore(doc.id, data);
       updatedChats.add(chat);
 
-      // Update user cache for DMs
       if (chat.type == ChatType.dm) {
         final otherUserId = chat.participants
             .firstWhere((id) => id != _currentUserId, orElse: () => '');
         if (otherUserId.isNotEmpty && !_userNameCache.containsKey(otherUserId)) {
-          _fetchUserName(otherUserId);
+          _fetchUserData(otherUserId);
         }
       }
     }
 
-    // Merge with existing chats (for pinned chats that might not be in stream)
     final existingChatIds = updatedChats.map((c) => c.id).toSet();
     final preservedChats = _allChats.where((c) => !existingChatIds.contains(c.id)).toList();
 
@@ -180,27 +167,28 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
     _saveChatsToCache(_allChats);
   }
 
-  Future<void> _fetchUserName(String userId) async {
+  Future<void> _fetchUserData(String userId) async {
     if (_userNameCache.containsKey(userId)) return;
 
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
         final data = doc.data()!;
-        final name = data['nickname'] ?? data['name'] ?? 'Unknown';
+        final name = data['first_name'] ?? data['name'] ?? 'Unknown';
+        final photo = data['profile_photo_url'] ?? '';
         setState(() {
           _userNameCache[userId] = name;
+          if (photo.isNotEmpty) _userPhotoCache[userId] = photo;
         });
       }
     } catch (e) {
-      debugPrint('Error fetching user name: $e');
+      debugPrint('Error fetching user data: $e');
     }
   }
 
   Future<void> _createOrJoinRequiredGroups() async {
     if (_currentUserId == null || _currentUserCourse == null) return;
 
-    // 1. General System Chat (for all users)
     await _ensureGroupChat(
       id: 'general_system_chat',
       name: '🌟 Campus Announcements',
@@ -209,12 +197,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       isPinned: true,
     );
 
-    // 2. Year & Semester Chat (for users in same year/semester)
     if (_currentSemester != null && _currentUserCourse != null) {
-      // Format: BIT 2.1 or Bsc IT 2.1
       final courseDisplay = _currentUserCourse!;
       final yearSemDisplay = '$courseDisplay $_currentYear.$_currentSemester';
-
       await _ensureGroupChat(
         id: 'year_${_currentYear}_sem_${_currentSemester}_chat',
         name: '📚 $yearSemDisplay',
@@ -229,16 +214,12 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       );
     }
 
-
-    // 3. Course Chat (for users in same course)
     await _ensureGroupChat(
       id: 'course_${_currentUserCourse}_chat',
       name: '🎓 $_currentUserCourse Course',
       description: 'Group for $_currentUserCourse students',
       type: ChatType.courseGroup,
-      filters: {
-        'course': _currentUserCourse,
-      },
+      filters: {'course': _currentUserCourse},
     );
   }
 
@@ -255,7 +236,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       final doc = await chatRef.get();
 
       if (!doc.exists) {
-        // Create new group chat
         await chatRef.set({
           'name': name,
           'description': description,
@@ -268,15 +248,12 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
           'isPinned': isPinned,
         });
       } else {
-        // Add user to existing chat if not already a participant
         final participants = List<String>.from(doc.data()?['participants'] ?? []);
         if (!participants.contains(_currentUserId)) {
           await chatRef.update({
             'participants': FieldValue.arrayUnion([_currentUserId]),
           });
         }
-
-        // Ensure pin status
         if (isPinned && (doc.data()?['isPinned'] != true)) {
           await chatRef.update({'isPinned': true});
         }
@@ -287,20 +264,14 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   }
 
   List<ChatItem> _sortAndFilterChats(List<ChatItem> chats) {
-    // Separate pinned and unpinned chats
     final pinned = chats.where((c) => c.isPinned).toList();
     final unpinned = chats.where((c) => !c.isPinned).toList();
-
-    // Sort by last message time (newest first)
     pinned.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
     unpinned.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-
     return [...pinned, ...unpinned];
   }
 
-  void _refreshChats() {
-    _setupChatStream();
-  }
+  void _refreshChats() => _setupChatStream();
 
   void _toggleSearch() {
     setState(() {
@@ -314,35 +285,25 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
 
   void _performSearch(String query) {
     if (query.isEmpty) {
-      setState(() {
-        _searchResults.clear();
-      });
+      setState(() => _searchResults.clear());
       return;
     }
 
     final results = _allChats.where((chat) {
       final searchText = query.toLowerCase();
-
-      // Search in chat name
       if (chat.name.toLowerCase().contains(searchText)) return true;
-
-      // Search in last message
       if (chat.lastMessage.toLowerCase().contains(searchText)) return true;
 
-      // For DMs, search in cached user names
       if (chat.type == ChatType.dm) {
         final otherUserId = chat.participants
             .firstWhere((id) => id != _currentUserId, orElse: () => '');
         final cachedName = _userNameCache[otherUserId]?.toLowerCase() ?? '';
         return cachedName.contains(searchText);
       }
-
       return false;
     }).toList();
 
-    setState(() {
-      _searchResults = results;
-    });
+    setState(() => _searchResults = results);
   }
 
   void _togglePinChat(ChatItem chat) {
@@ -351,12 +312,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       if (index != -1) {
         _allChats[index] = chat.copyWith(isPinned: !chat.isPinned);
         _filteredChats = _sortAndFilterChats(_allChats);
-
-        // Update in Firestore
         _firestore.collection('chats').doc(chat.id).update({
           'isPinned': !chat.isPinned,
         });
-
         _saveChatsToCache(_allChats);
       }
     });
@@ -365,17 +323,12 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
   Future<void> _startNewChat(BuildContext context) async {
     if (_currentUserId == null || _currentUserCourse == null) return;
 
-    // Only allow chatting with students in same course
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => UserSelectionScreen(
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => const UserSelectionScreen()),
     ).then((selectedUserId) async {
       if (selectedUserId == null || selectedUserId.isEmpty) return;
 
-      // Create DM chat
       final participants = [_currentUserId!, selectedUserId]..sort();
       final chatId = participants.join('_');
 
@@ -394,7 +347,6 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       }
 
       if (!mounted) return;
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -407,219 +359,480 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
     });
   }
 
-  Widget _buildChatListItem(ChatItem chat) {
+  // ✅ WHATSAPP-STYLE BUILD
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    String displayName = chat.name;
-    String? subtitle = chat.lastMessage;
-    int? unreadCount = chat.unreadCount;
-
-    // For DMs, get the other user's name
-    if (chat.type == ChatType.dm) {
-      final otherUserId = chat.participants
-          .firstWhere((id) => id != _currentUserId, orElse: () => '');
-      displayName = _userNameCache[otherUserId] ?? 'Unknown User';
+    if (_currentUserId == null) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: AppLogoLoadingWidget(size: 80)),
+      );
     }
 
-    return Dismissible(
-      key: Key(chat.id),
-      direction: DismissDirection.horizontal,
-      background: Container(
-        color: colorScheme.primary.withOpacity(0.1),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 20),
-        child: Icon(
-          chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
-          color: colorScheme.primary,
+    final displayChats = _isSearching ? _searchResults : _filteredChats;
+
+    // Filter by tab
+    final filteredByTab = displayChats.where((chat) {
+      if (_selectedTab == 0) return chat.type != ChatType.system && chat.type != ChatType.yearGroup && chat.type != ChatType.courseGroup;
+      return chat.type == ChatType.system || chat.type == ChatType.yearGroup || chat.type == ChatType.courseGroup;
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: _buildWhatsAppAppBar(theme, colorScheme),
+      body: Column(
+        children: [
+          // WhatsApp-style tabs
+          _buildWhatsAppTabs(theme, colorScheme),
+          // Chats list
+          Expanded(
+            child: filteredByTab.isEmpty
+                ? _buildEmptyState(theme)
+                : ListView.builder(
+              itemCount: filteredByTab.length,
+              itemBuilder: (context, index) {
+                return _buildWhatsAppChatItem(filteredByTab[index], theme, colorScheme);
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _buildWhatsAppFAB(theme, colorScheme),
+    );
+  }
+
+  // ✅ WHATSAPP-STYLE APP BAR
+  PreferredSizeWidget _buildWhatsAppAppBar(ThemeData theme, ColorScheme colorScheme) {
+    if (_isSearching) {
+      return AppBar(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _toggleSearch,
+        ),
+        title: TextField(
+          controller: _searchController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Search chats...',
+            border: InputBorder.none,
+            hintStyle: theme.textTheme.bodyLarge?.copyWith(color: theme.disabledColor),
+          ),
+          style: theme.textTheme.bodyLarge,
+          onChanged: _performSearch,
+        ),
+        actions: [
+          if (_searchController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _searchController.clear();
+                _performSearch('');
+              },
+            ),
+        ],
+      );
+    }
+
+    return AppBar(
+      backgroundColor: colorScheme.surface,
+      foregroundColor: colorScheme.onSurface,
+      elevation: 0.5,
+      title: Text(
+        'Chats',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
         ),
       ),
-      secondaryBackground: Container(
-        color: Colors.red.withOpacity(0.1),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete_outline, color: Colors.red),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: _toggleSearch,
+        ),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'new_group') {
+              // Navigate to new group creation
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(value: 'new_group', child: Text('New group')),
+            const PopupMenuItem(value: 'settings', child: Text('Settings')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ✅ WHATSAPP-STYLE TABS
+  Widget _buildWhatsAppTabs(ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withOpacity(0.3),
+            width: 0.5,
+          ),
+        ),
       ),
-      onDismissed: (direction) {
-        if (direction == DismissDirection.startToEnd) {
-          _togglePinChat(chat);
-        } else {
-          // Archive/delete chat (implement as needed)
-        }
-      },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatScreen(
-                  chatId: chat.id,
-                  otherUserId: chat.type == ChatType.dm
-                      ? chat.participants.firstWhere((id) => id != _currentUserId, orElse: () => '')
-                      : null,
-                ),
-              ),
-            );
-          },
-          onLongPress: () {
-            _showChatOptions(context, chat);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.dividerColor.withOpacity(0.3),
-                  width: 0.5,
-                ),
+      child: Row(
+        children: [
+          _buildTabItem(
+            context: context,
+            label: 'Chats',
+            index: 0,
+            count: _allChats.where((c) => c.type != ChatType.system && c.type != ChatType.yearGroup && c.type != ChatType.courseGroup).length,
+            theme: theme,
+            colorScheme: colorScheme,
+          ),
+          _buildTabItem(
+            context: context,
+            label: 'Groups',
+            index: 1,
+            count: _allChats.where((c) => c.type == ChatType.system || c.type == ChatType.yearGroup || c.type == ChatType.courseGroup).length,
+            theme: theme,
+            colorScheme: colorScheme,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem({
+    required BuildContext context,
+    required String label,
+    required int index,
+    required int count,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    final isSelected = _selectedTab == index;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? colorScheme.primary : Colors.transparent,
+                width: 3,
               ),
             ),
-            child: Row(
-              children: [
-                // Avatar
-                _buildChatAvatar(chat, colorScheme),
-                const SizedBox(width: 16),
-
-                // Chat info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (chat.isPinned)
-                            Icon(Icons.push_pin, size: 14, color: theme.disabledColor),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatTime(chat.lastMessageTime),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.disabledColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              subtitle,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.disabledColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (unreadCount != null && unreadCount > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                unreadCount.toString(),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildChatAvatar(ChatItem chat, ColorScheme colorScheme) {
+  // ✅ WHATSAPP-STYLE CHAT ITEM
+  Widget _buildWhatsAppChatItem(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
+    String displayName = chat.name;
+    String? subtitle = chat.lastMessage;
+    int? unreadCount = chat.unreadCount;
+    bool isOnline = false; // You can implement online status
+
+    if (chat.type == ChatType.dm) {
+      final otherUserId = chat.participants
+          .firstWhere((id) => id != _currentUserId, orElse: () => '');
+      displayName = _userNameCache[otherUserId] ?? 'Unknown User';
+    }
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              chatId: chat.id,
+              otherUserId: chat.type == ChatType.dm
+                  ? chat.participants.firstWhere((id) => id != _currentUserId, orElse: () => '')
+                  : null,
+            ),
+          ),
+        );
+      },
+      onLongPress: () => _showChatOptions(chat, theme, colorScheme),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: theme.dividerColor.withOpacity(0.2),
+              width: 0.3,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            _buildWhatsAppAvatar(chat, theme, colorScheme),
+            const SizedBox(width: 12),
+            // Chat info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          displayName,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        _formatTime(chat.lastMessageTime),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.disabledColor,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (chat.isPinned)
+                        Icon(Icons.push_pin, size: 12, color: theme.disabledColor),
+                      if (chat.isPinned) const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          subtitle,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: unreadCount != null && unreadCount > 0
+                                ? colorScheme.onSurface
+                                : theme.disabledColor,
+                            fontWeight: unreadCount != null && unreadCount > 0
+                                ? FontWeight.w500
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (unreadCount != null && unreadCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            unreadCount.toString(),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ WHATSAPP-STYLE AVATAR
+  Widget _buildWhatsAppAvatar(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
     final isGroup = chat.type != ChatType.dm;
 
     if (isGroup) {
       return CircleAvatar(
         radius: 24,
-        backgroundColor: _getChatColor(chat.type).withOpacity(0.1),
+        backgroundColor: _getChatColor(chat.type).withOpacity(0.15),
         child: Icon(
           _getChatIcon(chat.type),
           color: _getChatColor(chat.type),
-          size: 24,
-        ),
-      );
-    } else {
-      // For DMs, show user avatar
-      final otherUserId = chat.participants
-          .firstWhere((id) => id != _currentUserId, orElse: () => '');
-      final userName = _userNameCache[otherUserId] ?? '';
-      final initials = userName.isNotEmpty
-          ? userName.substring(0, 1).toUpperCase()
-          : '?';
-
-      return CircleAvatar(
-        radius: 24,
-        backgroundColor: colorScheme.primary.withOpacity(0.1),
-        child: Text(
-          initials,
-          style: TextStyle(
-            color: colorScheme.primary,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          size: 28,
         ),
       );
     }
+
+    final otherUserId = chat.participants
+        .firstWhere((id) => id != _currentUserId, orElse: () => '');
+    final userName = _userNameCache[otherUserId] ?? '';
+    final photoUrl = _userPhotoCache[otherUserId];
+    final initials = userName.isNotEmpty
+        ? userName.substring(0, 1).toUpperCase()
+        : '?';
+
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: colorScheme.primary.withOpacity(0.1),
+      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+          ? NetworkImage(photoUrl)
+          : null,
+      child: photoUrl == null || photoUrl.isEmpty
+          ? Text(
+        initials,
+        style: TextStyle(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
+      )
+          : null,
+    );
   }
 
+  // ✅ WHATSAPP-STYLE FAB
+  Widget _buildWhatsAppFAB(ThemeData theme, ColorScheme colorScheme) {
+    return FloatingActionButton(
+      heroTag: 'chat_screen_fab',
+      backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
+      onPressed: () => _startNewChat(context),
+      child: const Icon(Icons.chat),
+    );
+  }
+
+  // ✅ EMPTY STATE
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _selectedTab == 0 ? Icons.chat_bubble_outline : Icons.group_outlined,
+            size: 64,
+            color: theme.disabledColor,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _selectedTab == 0 ? 'No chats yet' : 'No groups yet',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.disabledColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_selectedTab == 0)
+            TextButton(
+              onPressed: () => _startNewChat(context),
+              child: const Text('Start a new chat'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ CHAT OPTIONS BOTTOM SHEET
+  void _showChatOptions(ChatItem chat, ThemeData theme, ColorScheme colorScheme) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                  color: colorScheme.primary,
+                ),
+                title: Text(chat.isPinned ? 'Unpin chat' : 'Pin chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _togglePinChat(chat);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none, color: Colors.grey),
+                title: const Text('Mute notifications'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.archive_outlined, color: Colors.grey),
+                title: const Text('Archive chat'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete chat'),
+                onTap: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ UTILITY METHODS
   Color _getChatColor(ChatType type) {
-    final theme = Theme.of(context);
     switch (type) {
-      case ChatType.system:
-        return Colors.amber;
-      case ChatType.yearGroup:
-        return Colors.green;
-      case ChatType.courseGroup:
-        return Colors.blue;
-      case ChatType.group:
-        return Colors.purple;
-      case ChatType.dm:
-        return theme.colorScheme.primary;
+      case ChatType.system: return Colors.amber;
+      case ChatType.yearGroup: return Colors.green;
+      case ChatType.courseGroup: return Colors.blue;
+      case ChatType.group: return Colors.purple;
+      case ChatType.dm: return Theme.of(context).colorScheme.primary;
     }
   }
 
   IconData _getChatIcon(ChatType type) {
     switch (type) {
-      case ChatType.system:
-        return Icons.campaign;
-      case ChatType.yearGroup:
-        return Icons.school;
-      case ChatType.courseGroup:
-        return Icons.group;
-      case ChatType.group:
-        return Icons.forum;
-      case ChatType.dm:
-        return Icons.person;
+      case ChatType.system: return Icons.campaign;
+      case ChatType.yearGroup: return Icons.school;
+      case ChatType.courseGroup: return Icons.group;
+      case ChatType.group: return Icons.forum;
+      case ChatType.dm: return Icons.person;
     }
   }
 
@@ -652,266 +865,9 @@ class _ChatHomeScreenState extends State<ChatHomeScreen>
       default: return '';
     }
   }
-
-  void _showChatOptions(BuildContext context, ChatItem chat) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(
-                  chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                title: Text(
-                  chat.isPinned ? 'Unpin chat' : 'Pin chat',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _togglePinChat(chat);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications_none, color: Colors.grey),
-                title: Text(
-                  'Mute notifications',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implement mute functionality
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.archive_outlined, color: Colors.grey),
-                title: Text(
-                  'Archive chat',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implement archive functionality
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: Text(
-                  'Delete chat',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.red,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implement delete functionality
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    if (_isSearching) {
-      return AppBar(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _toggleSearch,
-        ),
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Search chats...',
-            border: InputBorder.none,
-            hintStyle: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.disabledColor,
-            ),
-          ),
-          style: theme.textTheme.bodyLarge,
-          onChanged: _performSearch,
-        ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                _searchController.clear();
-                _performSearch('');
-              },
-            ),
-        ],
-      );
-    }
-
-    return AppBar(
-      backgroundColor: colorScheme.surface,
-      foregroundColor: colorScheme.onSurface,
-      elevation: 0,
-      title: Text(
-        'Chats',
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.search),
-          onPressed: _toggleSearch,
-        ),
-        IconButton(
-          icon: const Icon(Icons.more_vert),
-          onPressed: () {
-            _showSettingsMenu();
-          },
-        ),
-      ],
-    );
-  }
-
-  void _showSettingsMenu() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.light_mode),
-                title: const Text('Theme'),
-                trailing: DropdownButton<ThemeMode>(
-                  value: Theme.of(context).brightness == Brightness.dark
-                      ? ThemeMode.dark
-                      : ThemeMode.light,
-                  onChanged: (newMode) {
-                    // This would need to be connected to your ThemeManager
-                    Navigator.pop(context);
-                  },
-                  items: const [
-                    DropdownMenuItem(
-                      value: ThemeMode.light,
-                      child: Text('Light'),
-                    ),
-                    DropdownMenuItem(
-                      value: ThemeMode.dark,
-                      child: Text('Dark'),
-                    ),
-                  ],
-                  underline: Container(),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications),
-                title: const Text('Notifications'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to notifications settings
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.help_outline),
-                title: const Text('Help'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Show help
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final theme = Theme.of(context);
-
-    if (_currentUserId == null) {
-      return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        body: Center(child: AppLogoLoadingWidget(size: 80)),
-      );
-    }
-
-    final displayChats = _isSearching ? _searchResults : _filteredChats;
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          // Chats list
-          Expanded(
-            child: displayChats.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 80,
-                    color: theme.disabledColor,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _isSearching
-                        ? 'No chats found'
-                        : 'No chats yet',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.disabledColor,
-                    ),
-                  ),
-                  if (!_isSearching)
-                    TextButton(
-                      onPressed: () => _startNewChat(context),
-                      child: const Text('Start a new chat'),
-                    ),
-                ],
-              ),
-            )
-                : ListView.builder(
-              itemCount: displayChats.length,
-              itemBuilder: (context, index) {
-                return _buildChatListItem(displayChats[index]);
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'chat_screen_fab',
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
-        onPressed: () => _startNewChat(context),
-        child: const Icon(Icons.chat),
-      ),
-    );
-  }
 }
 
-// Chat data models
+// ✅ CHAT DATA MODELS (Minimal)
 enum ChatType {
   dm,
   group,

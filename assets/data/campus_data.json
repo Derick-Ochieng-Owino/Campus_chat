@@ -198,7 +198,90 @@
                     },
                     "Physics": {
                       "courses": {
-                        "": {},
+                        "BSc. Renewable Energy": {
+                          "years": {
+                            "1" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "2" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "3" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "4" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            }
+                          }
+                        },
                         "": {},
                         "": {}
                       }
@@ -324,11 +407,193 @@
               "schools": {
                 "SABS": {
                   "full_name": "School of Architecture and Building Sciences",
-                  "departments": {}
+                  "departments": {
+                    "Architecture" : {
+                      "courses" : {
+                        "BSc. Architectural Technology" : {
+
+                        }
+                      }
+                    }
+                  }
                 },
-                "SoBEE": {
+                "SOBEE": {
                   "full_name": "School of Biosystems and Environmental Engineering",
-                  "departments": {}
+                  "departments": {
+                    "SWEED" : {
+                      "full_name" : "Soil, Water and Environmental Engineering",
+                      "courses" : {
+                        "BSc. Water and Environment" : {
+                          "years": {
+                            "1" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "2" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "3" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "4" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            }
+                          }
+                        },
+                        "BSc. Water and Environment Engineering" : {
+                          "years": {
+                            "1" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "2" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "3" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "4" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 },
                 "SCEGE": {
                   "full_name": "School of Civil, Environmental and Geospatial Engineering",
@@ -336,7 +601,97 @@
                 },
                 "SEEIE": {
                   "full_name": "School of Electrical, Electronic and Information Engineering",
-                  "departments": {}
+                  "departments": {
+                    "TIE" : {
+                      "full_name" : "Telecommunication and Information Engineering",
+                      "courses" : {
+                        "BSc. Telecommunication and Information Engineering" : {
+                          "years": {
+                            "1" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "2" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "3" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "4" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 },
                 "SoMMME": {
                   "full_name": "School of Mechanical, Manufacturing and Materials Engineering",
@@ -349,7 +704,102 @@
               }
             },
             "COHES": {
-
+              "full_name" : "College of Health Sciences",
+              "schools": {
+                "SOBMS": {
+                  "full_name" : "School of ",
+                  "departments" : {
+                    "Biochemistry" : {
+                      "courses" : {
+                        "BSc. Applied Bioengineering" : {
+                          "years": {
+                            "1" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "2" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "3" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            },
+                            "4" : {
+                              "1" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ],
+                              "2" : [
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""},
+                                {"code": "","title": "","type": ""}
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },

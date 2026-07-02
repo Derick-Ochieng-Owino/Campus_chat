@@ -442,7 +442,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                                   backgroundColor: colorScheme.primary,
                                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                                              child: Text('NEXT: PERSONAL DETAILS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
+                                              child: Text('SAVE PERSONAL DETAILS', style: theme.textTheme.labelLarge!.copyWith(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
                                             ),
                                           ),
                                         ],

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/loading_widget.dart';
 import 'signin_screen.dart';
 import 'ghost.dart';
 
@@ -158,7 +159,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
 
                     // --- Form Positioning Constraints Architecture ---
-                    Center( // 🛠️ CRITICAL FIX: Forces card elements to sit comfortably in absolute vertical center alignment coords
+                    Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                         child: Card(
@@ -236,15 +237,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                   // --- Action Button Control Trigger ---
                                   SizedBox(
                                     width: double.infinity,
-                                    child: _isLoading
-                                        ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-                                        : ElevatedButton(
+                                    child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: colorScheme.primary,
                                         padding: const EdgeInsets.symmetric(vertical: 16),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       ),
-                                      onPressed: _emailSent ? null : _resetPassword,
+                                      // Disable button operations naturally during loading tasks
+                                      onPressed: (_isLoading || _emailSent) ? null : _resetPassword,
                                       child: Text(
                                         _emailSent ? 'EMAIL SENT' : 'SEND RESET LINK',
                                         style: theme.textTheme.labelLarge!.copyWith(fontSize: 18, color: colorScheme.onPrimary),
@@ -279,6 +279,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         ),
                       ),
                     ),
+
+                    // --- 🛠️ FIX: CRITICAL GLOBAL LOADING OVERLAY BLOCKER ---
+                    // Sits inside the stack root layout to cover all parent architectural frames
+                    if (_isLoading)
+                      const AppLogoLoadingWidget(isOverlay: true),
                   ],
                 ),
               ),

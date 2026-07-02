@@ -51,7 +51,7 @@ class _UserSelectionScreenState extends State<UserSelectionScreen> {
             itemBuilder: (context, index) {
               final userData = users[index].data() as Map<String, dynamic>;
               final userId = users[index].id;
-              final userName = userData['name'] ?? 'User ${userId.substring(0, 4)}';
+              final userName = userData['first_name'] ?? 'User ${userId.substring(0, 4)}';
               final userRole = userData['role'] ?? 'Student';
 
               return ListTile(

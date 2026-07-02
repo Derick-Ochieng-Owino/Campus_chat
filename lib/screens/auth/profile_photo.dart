@@ -109,14 +109,11 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
         'uid': user.uid, // Useful to have UID inside the document for queries
       };
 
-      // 1. Save to main 'users' collection (Authentication/Profile usage)
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .set(profileData, SetOptions(merge: true));
 
-      // 2. Save to new 'university_students' collection (Administrative/Academic usage)
-      // I changed 'universitydata' to 'university_students' to avoid confusion with static data
       await FirebaseFirestore.instance
           .collection('university_students')
           .doc(user.uid)

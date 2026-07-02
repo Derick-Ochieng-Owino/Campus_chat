@@ -14,10 +14,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _showBackOfCard = false;
 
+  //CHECK ON THIS LATER
+  // Semester dates - you can fetch these from Firestore or hardcode
+  final DateTime _semesterStart = DateTime(2026, 1, 15); // Example: Jan 15
+  final DateTime _semesterEnd = DateTime(2026, 5, 15); // Example: May 15
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     if (user == null) {
       return Scaffold(
@@ -43,7 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.settings_outlined, color: theme.colorScheme.onSurface),
+            icon: Icon(Icons.settings_outlined, color: colorScheme.onSurface),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -58,13 +64,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return Center(
               child: Text(
                 'Error loading profile stream context.',
-                style: TextStyle(color: theme.colorScheme.error),
+                style: TextStyle(color: colorScheme.error),
               ),
             );
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
-              child: CircularProgressIndicator(color: theme.colorScheme.secondary),
+              child: CircularProgressIndicator(color: colorScheme.secondary),
             );
           }
 
@@ -77,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- Flippable Digital Student Identity Badge Container ---
+                // --- Flippable Digital Student Identity Badge ---
                 GestureDetector(
                   onTap: () => setState(() => _showBackOfCard = !_showBackOfCard),
                   child: AnimatedSwitcher(
@@ -93,10 +99,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.flip_camera_android_rounded, size: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                      Icon(Icons.flip_camera_android_rounded, size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
                       const SizedBox(width: 6),
                       Text(
-                        'Tap card block to view structural verification flip-side',
+                        'Tap card to view verification flip-side',
                         style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, fontWeight: FontWeight.w500),
                       ),
                     ],
@@ -104,103 +110,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // --- Live Registered Units Stack ---
-                Text(
-                  'Registered Academic Units',
-                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                if (profile.registeredUnits.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'No active semester structural course units registered.',
-                        style: theme.textTheme.bodySmall?.copyWith(fontSize: 13),
-                      ),
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: profile.registeredUnits.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final unit = profile.registeredUnits[index];
-                      final String unitCode = unit['code']?.toString() ?? 'UNIT';
-                      final String unitTitle = unit['title']?.toString() ?? 'Course Module Unit Description';
+                // --- NEW: Semester Progress Card ---
+                _buildSemesterProgressCard(profile, theme),
 
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: theme.cardColor,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.secondary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                unitCode,
-                                style: TextStyle(
-                                  color: theme.colorScheme.secondary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                unitTitle,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            const Icon(Icons.verified_user_rounded, color: Colors.greenAccent, size: 18),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
                 const SizedBox(height: 28),
 
-                // --- Auxiliary Parameters Overview Block ---
-                Text(
-                  'Ecosystem Auxiliary Details',
-                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildAuxRow(theme, 'Institutional Reference ID', profile.uid.substring(0, 8).toUpperCase()),
-                      Divider(color: theme.dividerTheme.color, height: 24),
-                      _buildAuxRow(theme, 'Current Account Standing', 'Year ${profile.year}, Semester ${profile.semester}'),
-                      Divider(color: theme.dividerTheme.color, height: 24),
-                      _buildAuxRow(theme, 'Assigned Campus Domain', profile.campus),
-                      // if (profile.nickname != null && profile.nickname!.isNotEmpty) ...[
-                      //   Divider(color: theme.dividerTheme.color, height: 24),
-                      //   _buildAuxRow(theme, 'Internal App Profile Tag', profile.nickname!),
-                      // ]
-                    ],
-                  ),
-                ),
+                // --- Units List Section ---
+                _buildUnitsList(profile, theme),
+
+                const SizedBox(height: 28),
+
+                // --- Auxiliary Details ---
+                _buildAuxiliaryDetails(profile, theme),
+
                 const SizedBox(height: 24),
               ],
             ),
@@ -210,17 +132,573 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAuxRow(ThemeData theme, String label, String val) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // --- NEW: Semester Progress Card ---
+  Widget _buildSemesterProgressCard(UserProfile profile, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    final units = profile.registeredUnits;
+
+    // Calculate progress based on semester dates
+    final double semesterProgress = _calculateSemesterProgress();
+    final int daysRemaining = _calculateDaysRemaining();
+    final int totalUnits = units.length;
+    final int completedUnits = units.where((u) =>
+    u['status']?.toString().toLowerCase() == 'completed' ||
+        u['progress'] == 1.0
+    ).length;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.primary,
+            colorScheme.secondary,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Semester Progress',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Academic Year ${profile.year} • Semester ${profile.semester}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$daysRemaining days left',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Main Progress
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Overall Progress',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            '${(semesterProgress * 100).toInt()}%',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: LinearProgressIndicator(
+                          value: semesterProgress,
+                          minHeight: 8,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Quick stats
+                Expanded(
+                  flex: 2,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatItem(
+                        label: 'Total',
+                        value: '$totalUnits',
+                        color: Colors.white,
+                      ),
+                      _buildStatItem(
+                        label: 'Completed',
+                        value: '$completedUnits',
+                        color: Colors.green.shade300,
+                      ),
+                      _buildStatItem(
+                        label: 'Remaining',
+                        value: '${totalUnits - completedUnits}',
+                        color: Colors.orange.shade300,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Helper: Stat Item ---
+  Widget _buildStatItem({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
       children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(fontSize: 13)),
-        Text(val, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 10,
+          ),
+        ),
       ],
     );
   }
 
-  // --- Front Profile Layout (Matches physical identity sheet styling parameters) ---
+  // --- NEW: Units List ---
+  Widget _buildUnitsList(UserProfile profile, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    final units = profile.registeredUnits;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Registered Units',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (units.isNotEmpty)
+              Text(
+                '${units.length} units',
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.5),
+                  fontSize: 13,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (units.isEmpty)
+          _buildEmptyState(theme)
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: units.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final unit = units[index];
+              final unitCode = unit['code']?.toString() ?? 'UNIT-000';
+              final unitTitle = unit['title']?.toString() ?? 'Course Unit';
+              final progress = (unit['progress'] ?? 0.0).toDouble();
+              final status = unit['status']?.toString() ?? 'Active';
+
+              return _buildUnitListItem(
+                unitCode: unitCode,
+                unitTitle: unitTitle,
+                progress: progress,
+                status: status,
+                theme: theme,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  // --- NEW: Unit List Item ---
+  Widget _buildUnitListItem({
+    required String unitCode,
+    required String unitTitle,
+    required double progress,
+    required String status,
+    required ThemeData theme,
+  }) {
+    final colorScheme = theme.colorScheme;
+    final isCompleted = progress >= 1.0 || status.toLowerCase() == 'completed';
+    final statusColor = isCompleted ? Colors.green : colorScheme.secondary;
+    final statusText = isCompleted ? 'Completed' : 'In Progress';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.onSurface.withOpacity(0.08),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Status indicator
+          Container(
+            width: 4,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Main content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        unitTitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        unitCode,
+                        style: TextStyle(
+                          color: colorScheme.secondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: progress.clamp(0.0, 1.0),
+                                minHeight: 4,
+                                backgroundColor: colorScheme.onSurface.withOpacity(0.08),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isCompleted ? Colors.green : colorScheme.secondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(progress * 100).toInt()}%',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Empty State ---
+  Widget _buildEmptyState(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.onSurface.withOpacity(0.08),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.school_outlined,
+            size: 48,
+            color: colorScheme.onSurface.withOpacity(0.3),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No Registered Units',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your registered units will appear here\nafter enrollment.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Helper Methods for Semester Calculation ---
+  double _calculateSemesterProgress() {
+    final now = DateTime.now();
+    final totalDuration = _semesterEnd.difference(_semesterStart).inDays;
+    final elapsedDuration = now.difference(_semesterStart).inDays;
+
+    if (now.isBefore(_semesterStart)) return 0.0;
+    if (now.isAfter(_semesterEnd)) return 1.0;
+
+    return (elapsedDuration / totalDuration).clamp(0.0, 1.0);
+  }
+
+  int _calculateDaysRemaining() {
+    final now = DateTime.now();
+    final daysRemaining = _semesterEnd.difference(now).inDays;
+    return daysRemaining > 0 ? daysRemaining : 0;
+  }
+
+  // --- Auxiliary Details ---
+  Widget _buildAuxiliaryDetails(UserProfile profile, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Academic Information',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: colorScheme.onSurface.withOpacity(0.08),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              _buildInfoTile(
+                theme: theme,
+                icon: Icons.badge_outlined,
+                label: 'Student ID',
+                value: profile.regNumber.toUpperCase(),
+                color: colorScheme.primary,
+              ),
+              _buildDivider(theme),
+              _buildInfoTile(
+                theme: theme,
+                icon: Icons.calendar_today_outlined,
+                label: 'Academic Year',
+                value: 'Year ${profile.year}, Semester ${profile.semester}',
+                color: colorScheme.secondary,
+              ),
+              _buildDivider(theme),
+              _buildInfoTile(
+                theme: theme,
+                icon: Icons.location_on_outlined,
+                label: 'Campus',
+                value: profile.campus,
+                color: Colors.orange,
+              ),
+              if (profile.firstName.isNotEmpty) ...[
+                _buildDivider(theme),
+                _buildInfoTile(
+                  theme: theme,
+                  icon: Icons.tag_outlined,
+                  label: 'Profile Tag',
+                  value: profile.firstName,
+                  color: Colors.purple,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Helper: Info Tile ---
+  Widget _buildInfoTile({
+    required ThemeData theme,
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right,
+            size: 20,
+            color: theme.colorScheme.onSurface.withOpacity(0.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider(ThemeData theme) {
+    return Divider(
+      color: theme.dividerTheme.color,
+      height: 1,
+      indent: 16,
+      endIndent: 16,
+    );
+  }
+
+  // --- Original Card Front (unchanged) ---
   Widget _buildCardFront(UserProfile profile, ThemeData theme) {
     const darkTextColor = Color(0xFF111111);
 
@@ -228,14 +706,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       key: const ValueKey(true),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFBEF7BC), // #bef7bc background base configuration
+        color: const Color(0xFFBEF7BC),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF9CCC65), width: 1.2),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // 1. Watermark Layer (Locked strictly to 70x70 dimensions)
           Positioned.fill(
             child: Center(
               child: SizedBox(
@@ -249,15 +726,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-
-          // 2. Uniform Triangle Mesh Layer with scaled-down mesh size
           Positioned.fill(
             child: CustomPaint(
               painter: JkuatCardPatternPainter(),
             ),
           ),
-
-          // 3. Dynamic Profile Information UI Layer
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -372,7 +845,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- Identity Sheet Back View ---
+  // --- Original Card Back (unchanged) ---
   Widget _buildCardBack(UserProfile profile) {
     return Container(
       key: const ValueKey(false),
@@ -429,7 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4), width: 1.5),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.4), width: 1.5),
                 ),
                 child: const Icon(Icons.gavel_rounded, color: Colors.blueAccent, size: 20),
               )
@@ -440,6 +913,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // --- Original Rotation Transform ---
   Widget rotationYTransform(Animation<double> animation, Widget child) {
     return AnimatedBuilder(
       animation: animation,
@@ -464,11 +938,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+// --- Original Pattern Painter (unchanged) ---
 class JkuatCardPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Offset centerPoint = Offset(size.width / 2, size.height / 2);
-    // Tight radius constraint to envelope the 70x70 canvas center gap clean space securely
     const double plainSpaceRadius = 48.0;
 
     final Path totalCanvasPath = Path()
@@ -487,15 +961,14 @@ class JkuatCardPatternPainter extends CustomPainter {
     canvas.clipPath(gridMaskPath);
 
     final Paint linePaint = Paint()
-      ..color = const Color(0xFF1B5E20).withValues(alpha: 0.18) // Slightly lower alpha for dense line density readability
+      ..color = const Color(0xFF1B5E20).withOpacity(0.18)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.6; // Thinner strokes to prevent the smaller pattern from looking crowded
+      ..strokeWidth = 0.6;
 
     final Paint fillPaint = Paint()
-      ..color = const Color(0xFF1B5E20).withValues(alpha: 0.03)
+      ..color = const Color(0xFF1B5E20).withOpacity(0.03)
       ..style = PaintingStyle.fill;
 
-    // Shrunk down layout metrics for tight uniform density pattern
     const double triangleWidth = 24.0;
     const double triangleHeight = triangleWidth * 0.866025;
 

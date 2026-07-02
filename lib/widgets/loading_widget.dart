@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 
 class AppLogoLoadingWidget extends StatelessWidget {
@@ -19,14 +17,18 @@ class AppLogoLoadingWidget extends StatelessWidget {
     final surface = theme.colorScheme.surface;
 
     if (isOverlay) {
-      return Stack(
-        children: [
-          ModalBarrier(
-            dismissible: false,
-            color: Colors.black.withOpacity(0.4),
-          ),
-          Center(child: _buildContent(primary, surface)),
-        ],
+      // Using a full-screen transparent Scaffold blocks everything underneath
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            ModalBarrier(
+              dismissible: false,
+              color: Colors.black.withOpacity(0.4), // Dimmed background overlay
+            ),
+            Center(child: _buildContent(primary, surface)),
+          ],
+        ),
       );
     }
 
@@ -34,7 +36,7 @@ class AppLogoLoadingWidget extends StatelessWidget {
   }
 
   Widget _buildContent(Color primary, Color surface) {
-    final double indicatorSize = size * 1.25; // Ring slightly larger than logo
+    final double indicatorSize = size * 1.25;
 
     return SizedBox(
       height: indicatorSize,
@@ -42,7 +44,6 @@ class AppLogoLoadingWidget extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // ---- PROGRESS RING AROUND LOGO ----
           SizedBox(
             height: indicatorSize,
             width: indicatorSize,
@@ -51,8 +52,6 @@ class AppLogoLoadingWidget extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation(primary),
             ),
           ),
-
-          // ---- LOGO ----
           Container(
             height: size,
             width: size,

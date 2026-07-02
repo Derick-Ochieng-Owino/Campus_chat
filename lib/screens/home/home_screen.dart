@@ -1,9 +1,5 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-// Imports for your other screens
 import '../../widgets/loading_widget.dart';
 import '../Notes/notes_screen.dart';
 import '../auth/complete_profile.dart';
@@ -11,7 +7,13 @@ import '../profile/profile_screen.dart';
 import '../announcement/announcements_screen.dart';
 import '../chat/chat_home_screen.dart';
 import '../groups/groups_screen.dart';
-// import 'path/to/app_themes.dart'; // Uncomment if AppThemes is in a separate file
+
+// Your existing Models placeholder (ensure this is imported or defined)
+class UniversityData {
+  final Map universities;
+  UniversityData({required this.universities});
+  factory UniversityData.fromJsonString(String json) => UniversityData(universities: {});
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -31,11 +33,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<UniversityData> _loadUniversityData() async {
     try {
-      final jsonString =
-      await rootBundle.loadString('assets/data/campus_data.json');
+      final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
       return UniversityData.fromJsonString(jsonString);
     } catch (e) {
-      // Return empty data on error
       return UniversityData(universities: {});
     }
   }
@@ -50,13 +50,11 @@ class _HomePageState extends State<HomePage> {
             body: Center(child: AppLogoLoadingWidget(size: 80)),
           );
         }
-
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(child: Text('Error: ${snapshot.error}')),
           );
         }
-
         return const MainContent();
       },
     );
@@ -98,11 +96,9 @@ class _MainContentState extends State<MainContent> {
     int difference = (_currentIndex - index).abs();
     setState(() => _currentIndex = index);
 
-    if(difference > 1) {
-      _pageController.jumpToPage(
-        index,
-      );
-    }else {
+    if (difference > 1) {
+      _pageController.jumpToPage(index);
+    } else {
       _pageController.animateToPage(
         index,
         duration: const Duration(milliseconds: 300),
@@ -117,59 +113,100 @@ class _MainContentState extends State<MainContent> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Access the current theme data
     final theme = Theme.of(context);
-
-    // 2. Use theme colors instead of hardcoded hex values
     final backgroundColor = theme.scaffoldBackgroundColor;
     final navBarColor = theme.cardColor;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: PageView(
+    // Use LayoutBuilder to dynamically check the available width
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Broad threshold for landscape/laptop viewing setups (typically > 600 or 720 dp)
+        final bool isLandscapeWide = constraints.maxWidth >= 600;
+
+        return Scaffold(
+            backgroundColor: backgroundColor,
+            body: Row(
+                children: [
+                // 1. Sidebar Navigation for Wide/Landscape Screens
+                if (isLandscapeWide) ...[
+        Container(
+        decoration: BoxDecoration(
+        color: navBarColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(5, 0), // Shadow cast to the right
+              ),
+            ],
+        ),
+        child: SafeArea(
+        right: false,
+        child: Column(
+        children: [
+        const SizedBox(height: 16),
+        // You can place an App Logo or Profile avatar here like WhatsApp Web
+        _buildSideNavItem(0, Icons.chat_bubble_outline, "Chat"),
+        _buildSideNavItem(1, Icons.book_outlined, "Notes"),
+        _buildSideNavItem(2, Icons.groups_outlined, "Groups"),
+        _buildSideNavItem(3, Icons.campaign_outlined, "Announc.."),
+        _buildSideNavItem(4, Icons.person_outline, "Profile"),
+        ],
+        ),
+        ),
+        ),
+        // Subtle divider line
+        VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor),
+        ],
+
+        // 2. Main content pages
+        Expanded(
+        child: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
         physics: const BouncingScrollPhysics(),
         children: _screens,
-      ),
-      bottomNavigationBar: Container(
+        ),
+        ),
+        ],
+        ),
+
+        // 3. Bottom Navigation Bar for Mobile Screens Only
+        bottomNavigationBar: isLandscapeWide
+        ? null // Hides bottom bar on large screens
+            : Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: navBarColor,
-          // Optional: Add a subtle shadow for elevation
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
+        color: navBarColor,
+        boxShadow: [
+        BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        offset: const Offset(0, -5),
+        ),
+        ],
         ),
         child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildNavItem(0, Icons.chat_bubble_outline, "Chat"),
-              _buildNavItem(1, Icons.book_outlined, "Notes"),
-              _buildNavItem(2, Icons.groups_outlined, "Groups"),
-              _buildNavItem(3, Icons.campaign_outlined, "Announc.."),
-              _buildNavItem(4, Icons.person_outline, "Profile"),
-            ],
-          ),
+        top: false,
+        child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+        _buildBottomNavItem(0, Icons.chat_bubble_outline, "Chat"),
+        _buildBottomNavItem(1, Icons.book_outlined, "Notes"),
+        _buildBottomNavItem(2, Icons.groups_outlined, "Groups"),
+        _buildBottomNavItem(3, Icons.campaign_outlined, "Announc.."),
+        _buildBottomNavItem(4, Icons.person_outline, "Profile"),
+        ],
         ),
-      ),
+        ),
+        ),
+        );
+      },
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    final bool isSelected = _currentIndex == index;
-    final theme = Theme.of(context);
-
-    // 3. Define Active/Inactive colors based on the theme
-    final activeColor = theme.colorScheme.primary;
-    final inactiveColor = theme.colorScheme.onSurface.withOpacity(0.6);
-
+  // Refactored original item for the Bottom Navigation Bar
+  Widget _buildBottomNavItem(int index, IconData icon, String label) {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
@@ -177,32 +214,68 @@ class _MainContentState extends State<MainContent> {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(10), // Padding creates space for the background circle
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              // 4. "Opaque" background using primary color with opacity
-              color: isSelected
-                  ? activeColor.withOpacity(0.2) // 20% opacity primary color
-                  : Colors.transparent,
-            ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: isSelected ? activeColor : inactiveColor,
-            ),
-          ),
+          _buildIconCircle(index, icon),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              color: isSelected ? activeColor : inactiveColor,
-            ),
-          ),
+          _buildItemLabel(index, label),
         ],
+      ),
+    );
+  }
+
+  // New item template engineered specifically for the Left Sidebar layout
+  Widget _buildSideNavItem(int index, IconData icon, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      child: GestureDetector(
+        onTap: () => _onTabTapped(index),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildIconCircle(index, icon),
+            const SizedBox(height: 4),
+            _buildItemLabel(index, label),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Extracted shared UI logic for icons
+  Widget _buildIconCircle(int index, IconData icon) {
+    final bool isSelected = _currentIndex == index;
+    final theme = Theme.of(context);
+    final activeColor = theme.colorScheme.primary;
+    final inactiveColor = theme.colorScheme.onSurface.withOpacity(0.6);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isSelected ? activeColor.withOpacity(0.2) : Colors.transparent,
+      ),
+      child: Icon(
+        icon,
+        size: 24,
+        color: isSelected ? activeColor : inactiveColor,
+      ),
+    );
+  }
+
+  // Extracted shared UI logic for labels
+  Widget _buildItemLabel(int index, String label) {
+    final bool isSelected = _currentIndex == index;
+    final theme = Theme.of(context);
+    final activeColor = theme.colorScheme.primary;
+    final inactiveColor = theme.colorScheme.onSurface.withOpacity(0.6);
+
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        color: isSelected ? activeColor : inactiveColor,
       ),
     );
   }
