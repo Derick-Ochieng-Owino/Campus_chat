@@ -128,7 +128,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with SingleTickerProvid
         foregroundColor: colorScheme.onPrimary,
         elevation: 1,
         title: const Text(
-          'WhatsApp', // Or your app name
+          'Alma Mater',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 22),
         ),
         actions: [
