@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added for Block/Report functionality
 import '../../models/chat_model.dart';
 import '../../providers/chat_provider.dart';
 
@@ -86,6 +87,72 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
+  // --- APP STORE MANDATE 1: REPORT USER ---
+  void _showReportDialog() {
+    final TextEditingController reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report Content'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Please describe why you are reporting this chat:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Spam, Abuse, Harassment',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () async {
+              if (reasonController.text.trim().isNotEmpty) {
+                await FirebaseFirestore.instance.collection('reports').add({
+                  'reportedBy': currentUserId,
+                  'targetUserId': widget.otherUserId,
+                  'chatId': widget.chatId,
+                  'reason': reasonController.text.trim(),
+                  'timestamp': FieldValue.serverTimestamp(),
+                });
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Report submitted. We will review it shortly.')),
+                  );
+                }
+              }
+            },
+            child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- APP STORE MANDATE 2: BLOCK USER ---
+  void _blockUser() async {
+    if (widget.otherUserId == null) return;
+
+    await FirebaseFirestore.instance.collection('users').doc(currentUserId).update({
+      'blockedUsers': FieldValue.arrayUnion([widget.otherUserId]),
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User blocked successfully.')),
+      );
+      Navigator.of(context).pop(); // Exit chat screen after blocking
+    }
+  }
+
   bool get _isDesktopLayout {
     return kIsWeb && MediaQuery.of(context).size.width > _desktopMinWidth;
   }
@@ -123,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: colorScheme.secondary,
               radius: 20,
               child: Text(
-                title.substring(0, 1).toUpperCase(),
+                title.isNotEmpty ? title.substring(0, 1).toUpperCase() : '?',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -164,9 +231,24 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.call),
             onPressed: () {},
           ),
-          IconButton(
+          // ADDED: App Store Compliance Menu
+          PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onPressed: () {},
+            onSelected: (val) {
+              if (val == 'report') _showReportDialog();
+              if (val == 'block') _blockUser();
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Text('Report Chat'),
+              ),
+              if (widget.otherUserId != null)
+                PopupMenuItem(
+                  value: 'block',
+                  child: Text('Block User', style: TextStyle(color: colorScheme.error)),
+                ),
+            ],
           ),
           if (isDesktop) const SizedBox(width: 16),
         ],
@@ -235,7 +317,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                   return ListView.builder(
                     controller: _scrollController,
-                    reverse: true,
+                    reverse: true, // Native message anchoring
                     padding: const EdgeInsets.only(bottom: 8, top: 8),
                     itemCount: messages.length + 1,
                     itemBuilder: (context, index) {
@@ -263,16 +345,18 @@ class _ChatScreenState extends State<ChatScreen> {
                         showDateHeader = currentDate != nextDate;
                       }
 
-                      return Column(
-                        children: [
-                          if (showDateHeader)
-                            _DateHeader(date: msg.timestamp),
-                          _MessageBubble(
-                            message: msg,
-                            isMe: isMe,
-                            showSenderName: widget.otherUserId == null && !isMe,
-                          ),
-                        ],
+                      // ADDED: RepaintBoundary isolates render repaints to prevent lag
+                      return RepaintBoundary(
+                        child: Column(
+                          children: [
+                            if (showDateHeader) _DateHeader(date: msg.timestamp),
+                            _MessageBubble(
+                              message: msg,
+                              isMe: isMe,
+                              showSenderName: widget.otherUserId == null && !isMe,
+                            ),
+                          ],
+                        ),
                       );
                     },
                   );
@@ -302,7 +386,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-// Date Header
+// Date Header (Optimized layout)
 class _DateHeader extends StatelessWidget {
   final DateTime date;
 
@@ -356,7 +440,7 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
-// Message Bubble
+// Message Bubble (No changes needed, structurally sound)
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
@@ -523,29 +607,32 @@ class _InputBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: textController,
-            builder: (context, value, child) {
-              final hasText = value.text.trim().isNotEmpty;
+          // ADDED: RepaintBoundary around the button to isolate animation frames when typing
+          RepaintBoundary(
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: textController,
+              builder: (context, value, child) {
+                final hasText = value.text.trim().isNotEmpty;
 
-              return Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: hasText ? colorScheme.primary : colorScheme.primary.withOpacity(0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: hasText ? onSend : null,
-                  icon: Icon(
-                    hasText ? Icons.send : Icons.mic,
-                    color: Colors.white,
-                    size: 20,
+                return Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: hasText ? colorScheme.primary : colorScheme.primary.withOpacity(0.3),
+                    shape: BoxShape.circle,
                   ),
-                  padding: EdgeInsets.zero,
-                ),
-              );
-            },
+                  child: IconButton(
+                    onPressed: hasText ? onSend : null,
+                    icon: Icon(
+                      hasText ? Icons.send : Icons.mic,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../widgets/loading_widget.dart';
 import '../Notes/notes_screen.dart';
-import '../auth/complete_profile.dart';
 import '../profile/profile_screen.dart';
 import '../announcement/announcements_screen.dart';
 import '../chat/chat_home_screen.dart';
