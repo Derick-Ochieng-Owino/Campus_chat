@@ -20,9 +20,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
 
   // --- Original Form Controllers ---
-  final TextEditingController _firstnameController = TextEditingController();
-  final TextEditingController _middlenameController = TextEditingController();
-  final TextEditingController _lastnameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -49,9 +46,6 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
-    _firstnameController.dispose();
-    _middlenameController.dispose();
-    _lastnameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -239,11 +233,6 @@ class _SignUpPageState extends State<SignUpPage> {
         final userDocRef = _authService.currentUser;
         if (userDocRef != null) {
           await FirebaseFirestore.instance.collection('users').doc(userDocRef.uid).set({
-            'first_name': _firstnameController.text.trim(),
-            'middle_name': _middlenameController.text.trim().isEmpty
-                ? null
-                : _middlenameController.text.trim(),
-            'last_name': _lastnameController.text.trim(),
             'profile_completed': false,
             'auth_provider': 'email',
           }, SetOptions(merge: true));
@@ -341,23 +330,7 @@ class _SignUpPageState extends State<SignUpPage> {
           }
         }
 
-        final displayName = (user.displayName ?? "").trim();
-        String firstName = "";
-        String middleName = "";
-        String lastName = "";
-
-        final parts = displayName.split(RegExp(r'\s+'));
-        if (parts.isNotEmpty) firstName = parts.first;
-        if (parts.length == 2) {
-          lastName = parts.last;
-        } else if (parts.length >= 3) {
-          middleName = parts.sublist(1, parts.length - 1).join(" ");
-          lastName = parts.last;
-        }
-
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'first_name': firstName,
-          'last_name': lastName,
           'email': user.email?.toLowerCase(),
           'photo_url': user.photoURL,
           'role': 'student',
@@ -462,29 +435,6 @@ class _SignUpPageState extends State<SignUpPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 24),
-
-                                  TextFormField(
-                                    controller: _firstnameController,
-                                    textCapitalization: TextCapitalization.words,
-                                    decoration: themedInputDecoration(label: 'First Name', icon: Icons.person),
-                                    validator: (value) => (value == null || value.isEmpty) ? 'Please enter your first name' : null,
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  TextFormField(
-                                    controller: _middlenameController,
-                                    textCapitalization: TextCapitalization.words,
-                                    decoration: themedInputDecoration(label: 'Middle Name (Optional)', icon: Icons.person_outline),
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  TextFormField(
-                                    controller: _lastnameController,
-                                    textCapitalization: TextCapitalization.words,
-                                    decoration: themedInputDecoration(label: 'Last Name', icon: Icons.person_outlined),
-                                    validator: (value) => (value == null || value.isEmpty) ? 'Please enter your last name' : null,
-                                  ),
-                                  const SizedBox(height: 20),
 
                                   TextFormField(
                                     controller: _emailController,

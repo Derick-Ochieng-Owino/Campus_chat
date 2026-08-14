@@ -363,7 +363,7 @@ class _AnnouncementScreenState extends State<AnnouncementScreen>
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text("Announcements", style: theme.textTheme.titleLarge),
-        backgroundColor: colorScheme.surface,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),

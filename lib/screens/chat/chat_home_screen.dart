@@ -124,7 +124,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with SingleTickerProvid
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: colorScheme.primary,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         foregroundColor: colorScheme.onPrimary,
         elevation: 1,
         title: const Text(
@@ -168,6 +168,7 @@ class _ChatHomeScreenState extends State<ChatHomeScreen> with SingleTickerProvid
         ),
       ),
       body: TabBarView(
+        physics: const NeverScrollableScrollPhysics(),
         controller: _tabController,
         children: [
           _buildChatList(theme, isGroup: false),

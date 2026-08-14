@@ -604,7 +604,7 @@ class _NotesScreenState extends State<NotesScreen>
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text('Study Materials', style: theme.appBarTheme.titleTextStyle),
-        backgroundColor: theme.colorScheme.surface,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: theme.appBarTheme.elevation,
         bottom: TabBar(
@@ -658,6 +658,7 @@ class _NotesScreenState extends State<NotesScreen>
         ],
       ),
       body: TabBarView(
+        physics: const NeverScrollableScrollPhysics(),
         controller: _tabController,
         children: [
           // Notes Tab

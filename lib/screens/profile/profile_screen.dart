@@ -40,7 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: theme.appBarTheme.backgroundColor,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         elevation: theme.appBarTheme.elevation,
         title: Text(
           'Student Hub Profile',

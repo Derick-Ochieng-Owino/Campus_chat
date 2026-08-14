@@ -285,14 +285,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
 
-        final String displayName = user.displayName ?? "";
-        final List<String> nameParts = displayName.split(" ");
-        final String firstName = nameParts.isNotEmpty ? nameParts.first : "";
-        final String lastName = nameParts.length > 1 ? nameParts.skip(1).join(" ") : "";
-
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'first_name': firstName,
-          'last_name': lastName,
           'email': user.email?.toLowerCase(),
           'photo_url': user.photoURL,
           'role': 'student',

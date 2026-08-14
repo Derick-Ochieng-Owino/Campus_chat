@@ -770,10 +770,10 @@ class _GroupsTabState extends State<GroupsTab>
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(
-          'Study Groups Dropdown',
+          'Study Groups',
           style: theme.appBarTheme.titleTextStyle,
         ),
-        backgroundColor: colorScheme.surface,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: theme.appBarTheme.elevation,
         actions: [

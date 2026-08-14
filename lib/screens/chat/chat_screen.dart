@@ -179,7 +179,7 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: colorScheme.surface,
       appBar: showAppBar
           ? AppBar(
-        backgroundColor: colorScheme.primary,
+        backgroundColor: theme.colorScheme.primary.withOpacity(0.6),
         foregroundColor: Colors.white,
         elevation: 0,
         titleSpacing: 0,

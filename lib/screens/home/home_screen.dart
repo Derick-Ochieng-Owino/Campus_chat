@@ -11,7 +11,8 @@ import '../groups/groups_screen.dart';
 class UniversityData {
   final Map universities;
   UniversityData({required this.universities});
-  factory UniversityData.fromJsonString(String json) => UniversityData(universities: {});
+  factory UniversityData.fromJsonString(String json) =>
+      UniversityData(universities: {});
 }
 
 class HomePage extends StatefulWidget {
@@ -32,7 +33,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<UniversityData> _loadUniversityData() async {
     try {
-      final jsonString = await rootBundle.loadString('assets/data/campus_data.json');
+      final jsonString = await rootBundle.loadString(
+        'assets/data/campus_data.json',
+      );
       return UniversityData.fromJsonString(jsonString);
     } catch (e) {
       return UniversityData(universities: {});
@@ -123,82 +126,101 @@ class _MainContentState extends State<MainContent> {
         final bool isLandscapeWide = constraints.maxWidth >= 600;
 
         return Scaffold(
-            backgroundColor: backgroundColor,
-            body: Row(
-                children: [
-                // 1. Sidebar Navigation for Wide/Landscape Screens
-                if (isLandscapeWide) ...[
-        Container(
-        decoration: BoxDecoration(
-        color: navBarColor,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(5, 0), // Shadow cast to the right
+          backgroundColor: backgroundColor,
+          body: Row(
+            children: [
+              // 1. Sidebar Navigation for Wide/Landscape Screens
+              if (isLandscapeWide) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: navBarColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(5, 0), // Shadow cast to the right
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    right: false,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        // You can place an App Logo or Profile avatar here like WhatsApp Web
+                        _buildSideNavItem(0, Icons.chat_bubble_outline, "Chat"),
+                        _buildSideNavItem(1, Icons.book_outlined, "Notes"),
+                        _buildSideNavItem(2, Icons.groups_outlined, "Groups"),
+                        _buildSideNavItem(
+                          3,
+                          Icons.campaign_outlined,
+                          "Announc..",
+                        ),
+                        _buildSideNavItem(4, Icons.person_outline, "Profile"),
+                      ],
+                    ),
+                  ),
+                ),
+                // Subtle divider line
+                VerticalDivider(
+                  thickness: 1,
+                  width: 1,
+                  color: theme.dividerColor,
+                ),
+              ],
+
+              // 2. Main content pages
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: _onPageChanged,
+                  physics: const BouncingScrollPhysics(),
+                  children: _screens,
+                ),
               ),
             ],
-        ),
-        child: SafeArea(
-        right: false,
-        child: Column(
-        children: [
-        const SizedBox(height: 16),
-        // You can place an App Logo or Profile avatar here like WhatsApp Web
-        _buildSideNavItem(0, Icons.chat_bubble_outline, "Chat"),
-        _buildSideNavItem(1, Icons.book_outlined, "Notes"),
-        _buildSideNavItem(2, Icons.groups_outlined, "Groups"),
-        _buildSideNavItem(3, Icons.campaign_outlined, "Announc.."),
-        _buildSideNavItem(4, Icons.person_outline, "Profile"),
-        ],
-        ),
-        ),
-        ),
-        // Subtle divider line
-        VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor),
-        ],
+          ),
 
-        // 2. Main content pages
-        Expanded(
-        child: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
-        physics: const BouncingScrollPhysics(),
-        children: _screens,
-        ),
-        ),
-        ],
-        ),
-
-        // 3. Bottom Navigation Bar for Mobile Screens Only
-        bottomNavigationBar: isLandscapeWide
-        ? null // Hides bottom bar on large screens
-            : Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-        color: navBarColor,
-        boxShadow: [
-        BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        offset: const Offset(0, -5),
-        ),
-        ],
-        ),
-        child: SafeArea(
-        top: false,
-        child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-        _buildBottomNavItem(0, Icons.chat_bubble_outline, "Chat"),
-        _buildBottomNavItem(1, Icons.book_outlined, "Notes"),
-        _buildBottomNavItem(2, Icons.groups_outlined, "Groups"),
-        _buildBottomNavItem(3, Icons.campaign_outlined, "Announc.."),
-        _buildBottomNavItem(4, Icons.person_outline, "Profile"),
-        ],
-        ),
-        ),
-        ),
+          // 3. Bottom Navigation Bar for Mobile Screens Only
+          bottomNavigationBar: isLandscapeWide
+              ? null // Hides bottom bar on large screens
+              : Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: navBarColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildBottomNavItem(
+                          0,
+                          Icons.chat_bubble_outline,
+                          "Chat",
+                        ),
+                        _buildBottomNavItem(1, Icons.book_outlined, "Notes"),
+                        _buildBottomNavItem(2, Icons.groups_outlined, "Groups"),
+                        _buildBottomNavItem(
+                          3,
+                          Icons.campaign_outlined,
+                          "Announc..",
+                        ),
+                        _buildBottomNavItem(4, Icons.person_outline, "Profile"),
+                      ],
+                    ),
+                  ),
+                ),
         );
       },
     );
